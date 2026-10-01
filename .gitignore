@@ -1,0 +1,5 @@
+.gradle/
+*.zip
+.gradle-bin.zip
+.sdk-tools.zip
+build/
