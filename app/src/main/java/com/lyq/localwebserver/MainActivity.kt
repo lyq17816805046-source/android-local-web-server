@@ -243,19 +243,17 @@ class MainActivity : ComponentActivity() {
 
             // 第一遍：读取 site.json
             var siteConfig: JSONObject? = null
-            val entriesInOrder = ArrayList<String>()
             try {
                 ZipInputStream(FileInputStream(tmpZip)).use { zin ->
-                    var entry: ZipEntry? = zin.nextEntry
-                    while (entry != null) {
-                        val name = entry.name
-                        if (!entry.isDirectory) entriesInOrder.add(name)
+                    while (true) {
+                        val e = zin.nextEntry ?: break
+                        if (e.isDirectory) { zin.closeEntry(); continue }
+                        val name = e.name
                         if (name == "site.json" || name.endsWith("/site.json")) {
                             val content = zin.readBytes().toString(Charsets.UTF_8)
                             siteConfig = try { JSONObject(content) } catch (_: Exception) { null }
                         }
                         zin.closeEntry()
-                        entry = zin.nextEntry
                     }
                 }
             } catch (e: Exception) {
@@ -266,24 +264,22 @@ class MainActivity : ComponentActivity() {
 
             // 确定目标站点目录
             var targetSite = WebServerService.currentSite.ifEmpty { "default" }
-            var entryFile = "index.html"
             var siteName: String? = null
-            if (siteConfig != null) {
-                val cfgSite = siteConfig.optString("site", "")
+            val cfg = siteConfig
+            if (cfg != null) {
+                val cfgSite = cfg.optString("site", "")
                 if (cfgSite.isNotEmpty()) targetSite = cfgSite
-                siteName = siteConfig.optString("name", "")
-                val e = siteConfig.optString("entry", "")
-                if (e.isNotEmpty()) entryFile = e
+                siteName = cfg.optString("name", "")
             }
 
-            // 第二遍：按顺序解压（保持 entriesInOrder 的顺序）
+            // 第二遍：按顺序解压，防止路径穿越
             val destRoot = File(filesDir, "sites/$targetSite").apply { mkdirs() }
             var imported = 0
             ZipInputStream(FileInputStream(tmpZip)).use { zin ->
-                var entry: ZipEntry? = zin.nextEntry
-                while (entry != null) {
-                    if (!entry.isDirectory) {
-                        val name = entry.name
+                while (true) {
+                    val e = zin.nextEntry ?: break
+                    if (!e.isDirectory) {
+                        val name = e.name
                         if (name != "site.json" && !name.endsWith("/site.json")) {
                             val safe = safePath(name)
                             if (safe != null) {
@@ -295,7 +291,6 @@ class MainActivity : ComponentActivity() {
                         }
                     }
                     zin.closeEntry()
-                    entry = zin.nextEntry
                 }
             }
             tmpZip.delete()
