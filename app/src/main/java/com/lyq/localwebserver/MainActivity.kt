@@ -36,7 +36,7 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private val pickFile = registerForActivityResult(ActivityResultContracts.GetMultipleContents()) { uris ->
+    private val pickFile = registerForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
         uris.forEach { uri -> copyFileToSite(uri) }
     }
 
@@ -111,7 +111,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun pickFiles() {
-        pickFile.launch("*/*")
+        pickFile.launch(arrayOf("*/*"))
     }
 
     private fun copyFileToSite(uri: Uri) {
