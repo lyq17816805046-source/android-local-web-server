@@ -132,25 +132,20 @@ class MainActivity : ComponentActivity() {
                 }
             } catch (_: Exception) {}
 
-            if (name == null) {
-                name = uri.lastPathSegment
-                if (name != null && name.contains('/')) {
-                    name = name.substringAfterLast('/')
-                }
-            }
-            if (name == null) name = "file_${System.currentTimeMillis()}"
+            val fileName: String = name ?: uri.lastPathSegment?.substringAfterLast('/')
+                ?: "file_${System.currentTimeMillis()}"
 
             val site = WebServerService.currentSite.ifEmpty { "default" }
-            val dest = File(filesDir, "sites/$site/$name")
+            val dest = File(filesDir, "sites/$site/$fileName")
             dest.parentFile?.mkdirs()
 
             contentResolver.openInputStream(uri)?.use { input ->
                 dest.outputStream().use { output -> input.copyTo(output) }
             }
 
-            append("[文件] 已导入: $name")
+            append("[文件] 已导入: $fileName")
             handler.post {
-                Snackbar.make(root, "已导入: $name", Snackbar.LENGTH_SHORT).show()
+                Snackbar.make(root, "已导入: $fileName", Snackbar.LENGTH_SHORT).show()
                 refreshFileList()
             }
         } catch (e: SecurityException) {
