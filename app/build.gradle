@@ -1,10 +1,49 @@
 plugins { id 'com.android.application'; id 'org.jetbrains.kotlin.android' }
 
-android { namespace 'com.lyq.localwebserver'; compileSdk 34
-    defaultConfig { applicationId 'com.lyq.localwebserver'; minSdk 26; targetSdk 34; versionCode 6; versionName '5.1.0' }
-    compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
-    kotlinOptions { jvmTarget = '17' }
+android {
+    namespace 'com.lyq.localwebserver'
+    compileSdk 34
+
+    signingConfigs {
+        release {
+            // 从环境变量读取 keystore 密码与别名（GitHub Actions 通过 Secrets 注入）
+            def ksPath = System.getenv("KEYSTORE_FILE") ?: project.findProperty("KEYSTORE_FILE")
+            if (ksPath != null && !ksPath.isEmpty() && file(ksPath).exists()) {
+                storeFile file(ksPath)
+                storePassword System.getenv("STORE_PASSWORD") ?: project.findProperty("STORE_PASSWORD")
+                keyAlias System.getenv("KEY_ALIAS") ?: project.findProperty("KEY_ALIAS")
+                keyPassword System.getenv("KEY_PASSWORD") ?: project.findProperty("KEY_PASSWORD")
+            }
+        }
+    }
+
+    defaultConfig {
+        applicationId 'com.lyq.localwebserver'
+        minSdk 26
+        targetSdk 34
+        versionCode 7
+        versionName '5.1.1'
+    }
+
+    buildTypes {
+        release {
+            if (signingConfigs.release.storeFile != null) {
+                signingConfig signingConfigs.release
+            }
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+    kotlinOptions {
+        jvmTarget = '17'
+    }
 }
+
 dependencies {
     implementation 'androidx.core:core-ktx:1.13.1'
     implementation 'androidx.appcompat:appcompat:1.7.0'
