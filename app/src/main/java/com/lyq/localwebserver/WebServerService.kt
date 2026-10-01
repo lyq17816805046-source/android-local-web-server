@@ -29,7 +29,7 @@ class WebServerService : Service() {
         }
     }
 
-    private lateinit var root: File
+    private var root: File? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -41,13 +41,21 @@ class WebServerService : Service() {
 
     override fun onStartCommand(i: Intent?, flags: Int, id: Int): Int {
         port = i?.getIntExtra("port", 8080) ?: 8080
-        currentSite = i?.getStringExtra("site") ?: currentSite
+        val site = i?.getStringExtra("site")
+        if (site != null && site.isNotEmpty()) {
+            currentSite = site
+        }
         root = File(filesDir, "sites/$currentSite").apply { mkdirs() }
         if (!running) launch()
+        else broadcast("已重新加载站点: $currentSite（需重启服务使站点切换生效）")
         return START_STICKY
     }
 
     private fun launch() {
+        try {
+            server?.close()
+        } catch (_: Throwable) {}
+        server = null
         try {
             server = ServerSocket(port)
             running = true
@@ -71,50 +79,102 @@ class WebServerService : Service() {
         s.use {
             val input = BufferedReader(InputStreamReader(it.getInputStream()))
             val first = input.readLine() ?: return
-            while (input.readLine()?.isNotEmpty() == true) {} // skip headers
+            while (input.readLine()?.isNotEmpty() == true) {}
             val parts = first.split(" ")
             val raw = if (parts.size > 1) parts[1] else "/"
             val path = URLDecoder.decode(raw.substringBefore('?'), "UTF-8").removePrefix("/")
-            val safe = File(root, path).canonicalFile
-            val base = root.canonicalFile
-            if (safe.path != base.path && !safe.path.startsWith(base.path + File.separator)) {
+            val base = root ?: return
+            val safe = File(base, path).canonicalFile
+            if (safe.path != base.canonicalPath && !safe.canonicalPath.startsWith(base.canonicalPath + File.separator)) {
                 broadcast("400  非法路径")
-                val body = "<h1>400 Bad Request</h1>".toByteArray()
-                writeResponse(it, 400, "text/html; charset=utf-8", body)
+                writeResponse(it, 400, "text/html; charset=utf-8", "<h1>400 Bad Request</h1>".toByteArray())
                 return
             }
             val target = if (safe.isDirectory) File(safe, "index.html") else safe
             val code = if (target.exists() && target.isFile) 200 else 404
             val body = if (code == 200) target.readBytes()
-            else if (safe.isDirectory) directory(safe, path).toByteArray()
-            else "<h1>404 Not Found</h1><p>${URLEncoder.encode(raw, "UTF-8")}</p>".toByteArray()
-            val type = mime(target.name)
-            writeResponse(it, code, type, body)
+            else if (safe.isDirectory) directory(safe, path, currentSite).toByteArray()
+            else notFoundPage(raw).toByteArray()
+            writeResponse(it, code, mime(target.name), body)
             broadcast("${code}  ${raw}")
         }
     }
 
     private fun writeResponse(s: Socket, code: Int, type: String, body: ByteArray) {
         val out = s.getOutputStream()
-        val status = if (code == 200) "OK" else "Not Found"
+        val status = when (code) {
+            200 -> "OK"
+            400 -> "Bad Request"
+            404 -> "Not Found"
+            else -> "Error"
+        }
         out.write("HTTP/1.1 $code $status\r\nContent-Type: $type\r\nContent-Length: ${body.size}\r\nConnection: close\r\n\r\n".toByteArray())
         out.write(body)
         out.flush()
     }
 
-    private fun directory(dir: File, path: String) = buildString {
+    private fun directory(dir: File, path: String, siteName: String) = buildString {
         append("<!DOCTYPE html><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'>")
-        append("<style>body{font-family:system-ui,sans-serif;max-width:640px;margin:40px auto;padding:0 16px;color:#333}" +
-                "h2{font-size:20px;border-bottom:2px solid #1565C0;padding-bottom:8px}" +
-                "ul{list-style:none;padding:0}li{padding:10px 0;border-bottom:1px solid #eee}" +
-                "a{color:#1565C0;text-decoration:none;font-size:15px}a:hover{text-decoration:underline}" +
-                ".dir{font-weight:600}.dir::after{content:'/'}</style>")
-        append("<h2>📁 /$path</h2><ul>")
-        if (path.isNotEmpty()) append("<li><a href='/${path.substringBeforeLast('/')}'>⬆ 上级目录</a></li>")
-        dir.listFiles()?.sortedBy { it.name }?.forEach {
-            append("<li><a class='${if (it.isDirectory) "dir" else ""}' href='/${if (path.isEmpty()) "" else "$path/"}${URLEncoder.encode(it.name, "UTF-8")}'>${it.name}</a></li>")
+        append("<style>")
+        append("*{margin:0;padding:0;box-sizing:border-box}")
+        append("body{font-family:system-ui,-apple-system,sans-serif;background:#f5f7fa;color:#1a1c1e;min-height:100vh}")
+        append(".header{background:linear-gradient(135deg,#1565C0,#1976D2);color:#fff;padding:24px 20px}")
+        append(".header h1{font-size:20px;font-weight:500;margin-bottom:6px}")
+        append(".header span{font-size:13px;opacity:.85}")
+        append(".body{max-width:680px;margin:0 auto;padding:20px}")
+        append(".bread{font-size:13px;color:#666;margin-bottom:16px}")
+        append(".bread a{color:#1565C0;text-decoration:none}")
+        append(".card{background:#fff;border-radius:12px;box-shadow:0 1px 3px rgba(0,0,0,.08);overflow:hidden}")
+        append(".item{display:flex;align-items:center;padding:14px 16px;border-bottom:1px solid #f0f0f0;text-decoration:none;color:#333;transition:background .15s}")
+        append(".item:last-child{border-bottom:0}")
+        append(".item:hover{background:#f8faff}")
+        append(".icon{width:36px;height:36px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:18px;margin-right:14px}")
+        append(".icon-dir{background:#e3f2fd}.icon-file{background:#f5f5f5}")
+        append(".name{flex:1;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}")
+        append(".size{font-size:12px;color:#999;margin-left:12px}")
+        append(".up{font-weight:500;color:#1565C0}")
+        append(".empty{text-align:center;padding:48px 20px;color:#999}")
+        append(".empty .big{font-size:48px;margin-bottom:12px}")
+        append(".footer{text-align:center;padding:16px;font-size:11px;color:#bbb}")
+        append("</style>")
+        append("<div class='header'><h1>📁 $siteName</h1><span>/$path</span></div>")
+        append("<div class='body'>")
+        if (path.isNotEmpty()) {
+            val parent = path.substringBeforeLast('/', "")
+            append("<div class='bread'><a href='/'>🏠 根目录</a> / $path</div>")
+            append("<a class='item up' href='/${if (parent.isEmpty()) "" else "$parent/"}'>")
+            append("<span class='icon icon-dir'>⬆</span><span class='name'>上级目录</span></a>")
+        } else {
+            append("<div class='bread'>🏠 根目录</div>")
         }
-        append("</ul>")
+        append("<div class='card'>")
+        val files = dir.listFiles()
+        if (files == null || files.isEmpty()) {
+            append("<div class='empty'><div class='big'>📭</div><div>此目录为空</div></div>")
+        } else {
+            files.sortedBy { it.name }.forEach { f ->
+                val href = if (path.isEmpty()) URLEncoder.encode(f.name, "UTF-8")
+                           else "$path/${URLEncoder.encode(f.name, "UTF-8")}"
+                val isDir = f.isDirectory
+                append("<a class='item' href='/$href'>")
+                append("<span class='icon ${if (isDir) "icon-dir" else "icon-file"}'>${if (isDir) "📁" else "📄"}</span>")
+                append("<span class='name'>${f.name}</span>")
+                if (!isDir) {
+                    val sz = f.length()
+                    val szStr = when { sz < 1024 -> "${sz}B"; sz < 1048576 -> "${sz/1024}KB"; else -> "${"%.1f".format(sz/1048576.0)}MB" }
+                    append("<span class='size'>$szStr</span>")
+                }
+                append("</a>")
+            }
+        }
+        append("</div></div>")
+        append("<div class='footer'>本地网页托管 · $siteName</div>")
+    }
+
+    private fun notFoundPage(raw: String) = buildString {
+        append("<!DOCTYPE html><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'>")
+        append("<style>body{font-family:system-ui,sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;background:#f5f7fa;color:#333}.box{text-align:center;padding:40px;background:#fff;border-radius:16px;box-shadow:0 2px 8px rgba(0,0,0,.08);max-width:400px;width:90%}.box h1{font-size:72px;margin:0;color:#1565C0}.box p{font-size:16px;color:#666;margin:12px 0 24px}.box a{color:#1565C0;text-decoration:none;font-size:14px}code{background:#f0f0f0;padding:2px 8px;border-radius:4px;font-size:13px}</style>")
+        append("<div class='box'><h1>404</h1><p>页面未找到</p><p><code>${raw.take(60)}</code></p><a href='/'>← 返回首页</a></div>")
     }
 
     private fun mime(n: String) = when (n.substringAfterLast('.', "").lowercase()) {
@@ -150,7 +210,7 @@ class WebServerService : Service() {
     private fun notification() = NotificationCompat.Builder(this, "web")
         .setSmallIcon(android.R.drawable.stat_sys_upload)
         .setContentTitle("本地网页托管")
-        .setContentText("HTTP 服务运行中 — 端口: $port")
+        .setContentText("HTTP 服务运行中 — 端口: $port — 站点: $currentSite")
         .setOngoing(true)
         .setPriority(NotificationCompat.PRIORITY_LOW)
         .build()
