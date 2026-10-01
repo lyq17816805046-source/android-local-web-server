@@ -13,7 +13,10 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.snackbar.Snackbar
-import java.io.File
+import org.json.JSONObject
+import java.io.*
+import java.util.zip.ZipEntry
+import java.util.zip.ZipInputStream
 import kotlin.concurrent.thread
 
 class MainActivity : ComponentActivity() {
@@ -43,6 +46,18 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private val pickFolder = registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
+        if (uri != null) {
+            thread { importFolderToSite(uri) }
+        }
+    }
+
+    private val pickZip = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) {
+            thread { importZipToSite(uri) }
+        }
+    }
+
     override fun onCreate(b: Bundle?) {
         super.onCreate(b)
         try {
@@ -64,6 +79,8 @@ class MainActivity : ComponentActivity() {
             }
 
             findViewById<com.google.android.material.button.MaterialButton>(R.id.btnUpload).setOnClickListener { pickFiles() }
+            findViewById<com.google.android.material.button.MaterialButton>(R.id.btnImportFolder).setOnClickListener { pickFolder() }
+            findViewById<com.google.android.material.button.MaterialButton>(R.id.btnImportZip).setOnClickListener { pickZipFile() }
             findViewById<com.google.android.material.button.MaterialButton>(R.id.btnSites).setOnClickListener { showSitesDialog() }
             findViewById<com.google.android.material.button.MaterialButton>(R.id.btnNewSite).setOnClickListener { showNewSiteDialog() }
             findViewById<com.google.android.material.button.MaterialButton>(R.id.btnClearLog).setOnClickListener { log.text = "" }
@@ -128,6 +145,22 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun pickFolder() {
+        try {
+            pickFolder.launch(null)
+        } catch (e: Exception) {
+            Snackbar.make(root, "无法打开文件夹选择器: ${e.message}", Snackbar.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun pickZipFile() {
+        try {
+            pickZip.launch(arrayOf("application/zip", "application/octet-stream", "*/*"))
+        } catch (e: Exception) {
+            Snackbar.make(root, "无法打开文件选择器: ${e.message}", Snackbar.LENGTH_SHORT).show()
+        }
+    }
+
     private fun copyFileToSite(uri: Uri) {
         try {
             var name: String? = null
@@ -158,6 +191,135 @@ class MainActivity : ComponentActivity() {
         } catch (e: Exception) {
             handler.post { Snackbar.make(root, "导入失败: ${e.message}", Snackbar.LENGTH_LONG).show() }
         }
+    }
+
+    // 导入文件夹：保留子目录结构，复制到当前站点
+    private fun importFolderToSite(treeUri: Uri) {
+        try {
+            val site = WebServerService.currentSite.ifEmpty { "default" }
+            val baseDir = File(filesDir, "sites/$site").apply { mkdirs() }
+            var count = 0
+            count = copyTree(treeUri, baseDir, count)
+            append("[文件夹] 导入了 $count 个文件到站点: $site")
+            handler.post {
+                Snackbar.make(root, "导入完成，共 $count 个文件", Snackbar.LENGTH_SHORT).show()
+                refreshFileList()
+            }
+        } catch (e: Exception) {
+            handler.post { Snackbar.make(root, "文件夹导入失败: ${e.message}", Snackbar.LENGTH_LONG).show() }
+        }
+    }
+
+    // 递归复制 DocumentFile 树到 File
+    private fun copyTree(uri: Uri, destDir: File, count: Int): Int {
+        val dfNode = androidx.documentfile.provider.DocumentFile.fromTreeUri(this, uri) ?: return count
+        var c = count
+        destDir.mkdirs()
+        val items = dfNode.listFiles()
+        for (item in items) {
+            if (item.isDirectory) {
+                val subDir = File(destDir, item.name ?: "dir_${System.currentTimeMillis()}")
+                c = copyTree(item.uri, subDir, c)
+            } else {
+                val name = item.name ?: "file_${System.currentTimeMillis()}"
+                val out = File(destDir, name)
+                contentResolver.openInputStream(item.uri)?.use { input ->
+                    out.outputStream().use { output -> input.copyTo(output) }
+                }
+                c++
+            }
+        }
+        return c
+    }
+
+    // 导入 ZIP：先读 site.json，再按配置解压到站点目录
+    private fun importZipToSite(uri: Uri) {
+        try {
+            // 先复制 ZIP 到临时文件
+            val tmpZip = File(cacheDir, "import_${System.currentTimeMillis()}.zip")
+            contentResolver.openInputStream(uri)?.use { input ->
+                tmpZip.outputStream().use { output -> input.copyTo(output) }
+            }
+
+            // 第一遍：读取 site.json
+            var siteConfig: JSONObject? = null
+            val entriesInOrder = ArrayList<String>()
+            try {
+                ZipInputStream(FileInputStream(tmpZip)).use { zin ->
+                    var entry: ZipEntry? = zin.nextEntry
+                    while (entry != null) {
+                        val name = entry.name
+                        if (!entry.isDirectory) entriesInOrder.add(name)
+                        if (name == "site.json" || name.endsWith("/site.json")) {
+                            val content = zin.readBytes().toString(Charsets.UTF_8)
+                            siteConfig = try { JSONObject(content) } catch (_: Exception) { null }
+                        }
+                        zin.closeEntry()
+                        entry = zin.nextEntry
+                    }
+                }
+            } catch (e: Exception) {
+                handler.post { Snackbar.make(root, "ZIP 读取失败: ${e.message}", Snackbar.LENGTH_LONG).show() }
+                tmpZip.delete()
+                return
+            }
+
+            // 确定目标站点目录
+            var targetSite = WebServerService.currentSite.ifEmpty { "default" }
+            var entryFile = "index.html"
+            var siteName: String? = null
+            if (siteConfig != null) {
+                val cfgSite = siteConfig.optString("site", "")
+                if (cfgSite.isNotEmpty()) targetSite = cfgSite
+                siteName = siteConfig.optString("name", "")
+                val e = siteConfig.optString("entry", "")
+                if (e.isNotEmpty()) entryFile = e
+            }
+
+            // 第二遍：按顺序解压（保持 entriesInOrder 的顺序）
+            val destRoot = File(filesDir, "sites/$targetSite").apply { mkdirs() }
+            var imported = 0
+            ZipInputStream(FileInputStream(tmpZip)).use { zin ->
+                var entry: ZipEntry? = zin.nextEntry
+                while (entry != null) {
+                    if (!entry.isDirectory) {
+                        val name = entry.name
+                        if (name != "site.json" && !name.endsWith("/site.json")) {
+                            val safe = safePath(name)
+                            if (safe != null) {
+                                val out = File(destRoot, safe)
+                                out.parentFile?.mkdirs()
+                                out.outputStream().use { o -> zin.copyTo(o) }
+                                imported++
+                            }
+                        }
+                    }
+                    zin.closeEntry()
+                    entry = zin.nextEntry
+                }
+            }
+            tmpZip.delete()
+
+            // 同步当前站点
+            WebServerService.currentSite = targetSite
+            append("[ZIP] 站点导入完成: ${siteName ?: targetSite}，共 $imported 个文件")
+            handler.post {
+                val msg = if (siteName != null) "已导入站点「$siteName」：$imported 个文件" else "已导入 $imported 个文件"
+                Snackbar.make(root, msg, Snackbar.LENGTH_LONG).show()
+                refreshFileList()
+            }
+        } catch (e: Exception) {
+            handler.post { Snackbar.make(root, "ZIP 导入失败: ${e.message}", Snackbar.LENGTH_LONG).show() }
+        }
+    }
+
+    // 防路径穿越：规范化 zip entry 名称
+    private fun safePath(name: String): String? {
+        val cleaned = name.replace('\\', '/').trim('/')
+        if (cleaned.isEmpty()) return null
+        if (cleaned.contains("..")) return null
+        if (cleaned.startsWith("/")) return null
+        return cleaned
     }
 
     private fun refreshFileList() {
@@ -200,7 +362,6 @@ class MainActivity : ComponentActivity() {
         File(filesDir, "sites/$newSite").mkdirs()
         refreshFileList()
         stopServer()
-        // wait for old service to fully stop, then restart
         handler.postDelayed({
             ContextCompat.startForegroundService(this, makeIntent())
             handler.postDelayed({ updateUI(WebServerService.running) }, 800)
