@@ -93,8 +93,53 @@ class MainActivity : ComponentActivity() {
 
             updateUI(false)
             refreshFileList()
+            handleIncomingIntent(intent)
         } catch (e: Exception) {
             Toast.makeText(this, "初始化失败: ${e.message}", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        handleIncomingIntent(intent)
+    }
+
+    // 处理「打开方式」传入的文件：ZIP 或 HTML
+    private fun handleIncomingIntent(intent: Intent?) {
+        if (intent == null) return
+        val action = intent.action ?: return
+        val uri = when (action) {
+            Intent.ACTION_VIEW -> intent.data
+            Intent.ACTION_SEND -> intent.getParcelableExtra(Intent.EXTRA_STREAM) as? Uri
+            else -> null
+        }
+        if (uri != null) {
+            val name = queryName(uri).lowercase()
+            when {
+                name.endsWith(".zip") -> {
+                    handler.postDelayed({ importZipToSite(uri) }, 300)
+                }
+                name.endsWith(".html") || name.endsWith(".htm") -> {
+                    handler.postDelayed({ copyFileToSite(uri) }, 300)
+                }
+                else -> {
+                    // 其他文件也尝试复制
+                    handler.postDelayed({ copyFileToSite(uri) }, 300)
+                }
+            }
+        }
+    }
+
+    private fun queryName(uri: Uri): String {
+        return try {
+            contentResolver.query(uri, null, null, null, null)?.use { c ->
+                if (c.moveToFirst()) {
+                    val idx = c.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                    if (idx >= 0) c.getString(idx) else "file"
+                } else "file"
+            } ?: uri.lastPathSegment ?: "file"
+        } catch (_: Exception) {
+            uri.lastPathSegment ?: "file"
         }
     }
 
