@@ -81,6 +81,13 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun makeIntent(): Intent {
+        val site = WebServerService.currentSite.ifEmpty { "default" }
+        return Intent(this, WebServerService::class.java)
+            .putExtra("port", port.text.toString().toIntOrNull() ?: 8080)
+            .putExtra("site", site)
+    }
+
     private fun startServer() {
         val p = port.text.toString().toIntOrNull() ?: 8080
         if (p !in 1024..65535) {
@@ -88,20 +95,21 @@ class MainActivity : ComponentActivity() {
             switchServer.isChecked = false
             return
         }
-        ContextCompat.startForegroundService(this, Intent(this, WebServerService::class.java).putExtra("port", p))
-        handler.postDelayed({ updateUI(WebServerService.running) }, 500)
+        ContextCompat.startForegroundService(this, makeIntent())
+        handler.postDelayed({ updateUI(WebServerService.running) }, 800)
     }
 
     private fun stopServer() {
         stopService(Intent(this, WebServerService::class.java))
-        handler.postDelayed({ updateUI(false) }, 500)
+        handler.postDelayed({ updateUI(false) }, 800)
     }
 
     private fun updateUI(on: Boolean) {
         statusDot.setImageResource(if (on) R.drawable.dot_on else R.drawable.dot_off)
         status.text = if (on) "服务运行中" else "服务已停止"
         status.setTextColor(if (on) 0xFF4CAF50.toInt() else 0xFF888888.toInt())
-        address.text = if (on) "http://${WebServerService.localIp()}:${port.text}" else "http://—:${port.text}"
+        val site = WebServerService.currentSite.ifEmpty { "default" }
+        address.text = if (on) "http://${WebServerService.localIp()}:${port.text}/  |  $site" else "http://—:${port.text}"
         switchServer.isChecked = on
     }
 
@@ -132,9 +140,7 @@ class MainActivity : ComponentActivity() {
                 }
             } catch (_: Exception) {}
 
-            val fileName: String = name ?: uri.lastPathSegment?.substringAfterLast('/')
-                ?: "file_${System.currentTimeMillis()}"
-
+            val fileName = name ?: uri.lastPathSegment?.substringAfterLast('/') ?: "file_${System.currentTimeMillis()}"
             val site = WebServerService.currentSite.ifEmpty { "default" }
             val dest = File(filesDir, "sites/$site/$fileName")
             dest.parentFile?.mkdirs()
@@ -142,20 +148,15 @@ class MainActivity : ComponentActivity() {
             contentResolver.openInputStream(uri)?.use { input ->
                 dest.outputStream().use { output -> input.copyTo(output) }
             }
-
             append("[文件] 已导入: $fileName")
             handler.post {
                 Snackbar.make(root, "已导入: $fileName", Snackbar.LENGTH_SHORT).show()
                 refreshFileList()
             }
         } catch (e: SecurityException) {
-            handler.post {
-                Snackbar.make(root, "权限不足，请重新选择文件", Snackbar.LENGTH_SHORT).show()
-            }
+            handler.post { Snackbar.make(root, "权限不足，请重新选择文件", Snackbar.LENGTH_SHORT).show() }
         } catch (e: Exception) {
-            handler.post {
-                Snackbar.make(root, "导入失败: ${e.message}", Snackbar.LENGTH_LONG).show()
-            }
+            handler.post { Snackbar.make(root, "导入失败: ${e.message}", Snackbar.LENGTH_LONG).show() }
         }
     }
 
@@ -165,44 +166,28 @@ class MainActivity : ComponentActivity() {
             val dir = File(filesDir, "sites/$site")
             currentSite.text = "站点: $site"
             fileList.removeAllViews()
-
             val files = dir.listFiles()
             if (files == null || files.isEmpty()) {
-                val tv = TextView(this).apply {
-                    text = "（空目录，请导入文件）"
-                    textSize = 12f
-                    setTextColor(0xFFAAAAAA.toInt())
-                    setPadding(8, 12, 8, 0)
-                }
-                fileList.addView(tv)
+                fileList.addView(TextView(this).apply {
+                    text = "（空目录，请导入文件）"; textSize = 12f; setTextColor(0xFFAAAAAA.toInt()); setPadding(8, 12, 8, 0)
+                })
                 return
             }
-
             files.sortedBy { it.name }.forEach { f ->
                 val row = LinearLayout(this).apply {
-                    orientation = LinearLayout.HORIZONTAL
-                    setPadding(8, 10, 8, 10)
-                    gravity = android.view.Gravity.CENTER_VERTICAL
+                    orientation = LinearLayout.HORIZONTAL; setPadding(8, 10, 8, 10); gravity = android.view.Gravity.CENTER_VERTICAL
                 }
-                val nameView = TextView(this).apply {
-                    text = "${if (f.isDirectory) "📁 " else "📄 "}${f.name}"
-                    textSize = 13f
-                    setTextColor(0xFF333333.toInt())
+                row.addView(TextView(this).apply {
+                    text = "${if (f.isDirectory) "📁 " else "📄 "}${f.name}"; textSize = 13f; setTextColor(0xFF333333.toInt())
                     layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
-                }
-                val del = TextView(this).apply {
-                    text = "✕"
-                    textSize = 16f
-                    setTextColor(0xFFCC4444.toInt())
-                    setPadding(16, 4, 4, 4)
+                })
+                row.addView(TextView(this).apply {
+                    text = "✕"; textSize = 16f; setTextColor(0xFFCC4444.toInt()); setPadding(16, 4, 4, 4)
                     setOnClickListener {
                         try { f.deleteRecursively() } catch (_: Exception) {}
-                        refreshFileList()
-                        Snackbar.make(root, "已删除: ${f.name}", Snackbar.LENGTH_SHORT).show()
+                        refreshFileList(); Snackbar.make(root, "已删除: ${f.name}", Snackbar.LENGTH_SHORT).show()
                     }
-                }
-                row.addView(nameView)
-                row.addView(del)
+                })
                 fileList.addView(row)
             }
         } catch (e: Exception) {
@@ -210,28 +195,35 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun restartServerWithSite(newSite: String) {
+        WebServerService.currentSite = newSite
+        File(filesDir, "sites/$newSite").mkdirs()
+        refreshFileList()
+        stopServer()
+        // wait for old service to fully stop, then restart
+        handler.postDelayed({
+            ContextCompat.startForegroundService(this, makeIntent())
+            handler.postDelayed({ updateUI(WebServerService.running) }, 800)
+        }, 1200)
+    }
+
     private fun showSitesDialog() {
         try {
             val sitesDir = File(filesDir, "sites").apply { mkdirs() }
             if (!File(sitesDir, "default").exists()) File(sitesDir, "default").mkdirs()
             val sites = sitesDir.listFiles()?.filter { it.isDirectory }?.map { it.name }?.sorted() ?: listOf("default")
-            val items = sites.toTypedArray()
             val current = WebServerService.currentSite.ifEmpty { "default" }
             val checked = sites.indexOf(current).coerceAtLeast(0)
 
             MaterialAlertDialogBuilder(this)
                 .setTitle("切换站点")
-                .setSingleChoiceItems(items, checked) { dialog, which ->
-                    val newSite = items[which]
-                    WebServerService.currentSite = newSite
-                    File(filesDir, "sites/$newSite").mkdirs()
+                .setSingleChoiceItems(sites.toTypedArray(), checked) { dialog, which ->
                     dialog.dismiss()
-                    refreshFileList()
-                    if (WebServerService.running) {
-                        stopServer()
-                        handler.postDelayed({ startServer() }, 600)
+                    val chosen = sites[which]
+                    if (chosen != WebServerService.currentSite) {
+                        restartServerWithSite(chosen)
                     }
-                    Snackbar.make(root, "已切换到: $newSite", Snackbar.LENGTH_SHORT).show()
+                    Snackbar.make(root, "已切换到: $chosen", Snackbar.LENGTH_SHORT).show()
                 }
                 .setPositiveButton("确定", null)
                 .show()
@@ -251,9 +243,7 @@ class MainActivity : ComponentActivity() {
                     val name = input.text.toString().trim()
                     if (name.isNotEmpty() && name.matches(Regex("^[a-zA-Z0-9_\\u4e00-\\u9fa5-]+$"))) {
                         File(filesDir, "sites/$name").mkdirs()
-                        WebServerService.currentSite = name
-                        refreshFileList()
-                        if (WebServerService.running) { stopServer(); handler.postDelayed({ startServer() }, 600) }
+                        restartServerWithSite(name)
                         Snackbar.make(root, "站点已创建: $name", Snackbar.LENGTH_SHORT).show()
                     } else {
                         Snackbar.make(root, "站点名不合法", Snackbar.LENGTH_SHORT).show()
