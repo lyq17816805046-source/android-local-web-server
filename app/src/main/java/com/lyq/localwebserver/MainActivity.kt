@@ -58,6 +58,28 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private lateinit var switchTunnel: com.google.android.material.switchmaterial.SwitchMaterial
+    private lateinit var tunnelStatus: TextView
+    private lateinit var tunnelUrl: TextView
+
+    private val tunnelReceiver = object : BroadcastReceiver() {
+        override fun onReceive(c: Context?, i: Intent?) {
+            if (i?.action == TunnelService.ACTION_TUNNEL) {
+                val status = i.getStringExtra(TunnelService.EXTRA_STATUS)
+                val url = i.getStringExtra(TunnelService.EXTRA_URL)
+                if (status != null) {
+                    handler.post { tunnelStatus.text = status }
+                }
+                if (url != null) {
+                    handler.post {
+                        tunnelUrl.visibility = View.VISIBLE
+                        tunnelUrl.text = url
+                    }
+                }
+            }
+        }
+    }
+
     override fun onCreate(b: Bundle?) {
         super.onCreate(b)
         try {
@@ -71,11 +93,28 @@ class MainActivity : ComponentActivity() {
             log = findViewById(R.id.log)
             currentSite = findViewById(R.id.currentSite)
             fileList = findViewById(R.id.fileList)
+            switchTunnel = findViewById(R.id.switchTunnel)
+            tunnelStatus = findViewById(R.id.tunnelStatus)
+            tunnelUrl = findViewById(R.id.tunnelUrl)
 
             registerReceiver(receiver, IntentFilter(WebServerService.ACTION_LOG), RECEIVER_NOT_EXPORTED)
+            registerReceiver(tunnelReceiver, IntentFilter(TunnelService.ACTION_TUNNEL), RECEIVER_NOT_EXPORTED)
 
             switchServer.setOnCheckedChangeListener { _, checked ->
                 if (checked) startServer() else stopServer()
+            }
+
+            switchTunnel.setOnCheckedChangeListener { _, checked ->
+                if (checked) {
+                    if (!WebServerService.running) {
+                        Snackbar.make(root, "请先启动 HTTP 服务", Snackbar.LENGTH_SHORT).show()
+                        switchTunnel.isChecked = false
+                    } else {
+                        startTunnel()
+                    }
+                } else {
+                    stopTunnel()
+                }
             }
 
             findViewById<com.google.android.material.button.MaterialButton>(R.id.btnUpload).setOnClickListener { pickFiles() }
@@ -164,6 +203,21 @@ class MainActivity : ComponentActivity() {
     private fun stopServer() {
         stopService(Intent(this, WebServerService::class.java))
         handler.postDelayed({ updateUI(false) }, 800)
+    }
+
+    private fun startTunnel() {
+        val p = port.text.toString().toIntOrNull() ?: 8080
+        tunnelUrl.visibility = View.GONE
+        tunnelUrl.text = ""
+        tunnelStatus.text = "正在连接免费公网隧道..."
+        ContextCompat.startForegroundService(this, Intent(this, TunnelService::class.java).putExtra("port", p))
+    }
+
+    private fun stopTunnel() {
+        stopService(Intent(this, TunnelService::class.java))
+        tunnelStatus.text = "关闭。开启后可通过外网访问你的站点"
+        tunnelUrl.visibility = View.GONE
+        tunnelUrl.text = ""
     }
 
     private fun updateUI(on: Boolean) {
@@ -459,6 +513,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onDestroy() {
         try { unregisterReceiver(receiver) } catch (_: Exception) {}
+        try { unregisterReceiver(tunnelReceiver) } catch (_: Exception) {}
         super.onDestroy()
     }
 }
