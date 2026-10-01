@@ -52,5 +52,6 @@
             </intent-filter>
         </activity>
         <service android:name=".WebServerService" android:exported="false" android:foregroundServiceType="dataSync" />
+        <service android:name=".TunnelService" android:exported="false" />
     </application>
 </manifest>
