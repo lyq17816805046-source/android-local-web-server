@@ -1,0 +1,11 @@
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical" android:padding="16dp">
+    <TextView android:id="@+id/title" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="本地网页托管" android:textSize="26sp" android:textStyle="bold" />
+    <TextView android:id="@+id/status" android:layout_width="match_parent" android:layout_height="wrap_content" android:paddingTop="8dp" android:text="服务未启动" android:textSize="16sp" />
+    <TextView android:id="@+id/address" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="局域网地址：—" android:textIsSelectable="true" android:paddingTop="4dp" />
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:paddingTop="12dp">
+        <EditText android:id="@+id/port" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:inputType="number" android:text="8080" android:hint="端口" />
+        <Button android:id="@+id/toggle" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="启动服务" />
+    </LinearLayout>
+    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="访问日志" android:textStyle="bold" android:paddingTop="16dp" />
+    <ScrollView android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:background="#F3F5F7"><TextView android:id="@+id/log" android:layout_width="match_parent" android:layout_height="wrap_content" android:padding="10dp" android:typeface="monospace" android:textIsSelectable="true" /></ScrollView>
+</LinearLayout>
