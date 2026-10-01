@@ -1,0 +1,64 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- 地球轮廓 -->
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="3.5"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000"
+        android:pathData="M54,20 C72.7,20 88,35.3 88,54 C88,72.7 72.7,88 54,88 C35.3,88 20,72.7 20,54 C20,35.3 35.3,20 54,20 Z" />
+
+    <!-- 经线1（纵向） -->
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000"
+        android:pathData="M54,20 C45,20 37,35.3 37,54 C37,72.7 45,88 54,88 C63,88 71,72.7 71,54 C71,35.3 63,20 54,20" />
+
+    <!-- 经线2（纵向） -->
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000"
+        android:pathData="M54,20 C63,20 71,35.3 71,54 C71,72.7 63,88 54,88 C45,88 37,72.7 37,54 C37,35.3 45,20 54,20" />
+
+    <!-- 纬线1（横向） -->
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000"
+        android:pathData="M22,40 L86,40" />
+
+    <!-- 纬线2（横向） -->
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000"
+        android:pathData="M20,54 L88,54" />
+
+    <!-- 纬线3（横向） -->
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000"
+        android:pathData="M22,68 L86,68" />
+
+    <!-- 服务器指示灯 -->
+    <path
+        android:fillColor="#4CAF50"
+        android:pathData="M54,54 m-4,0 a4,4 0 1,0 8,0 a4,4 0 1,0 -8,0" />
+
+    <!-- 服务器底座 -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M48,78 L60,78 L58,84 L50,84 Z" />
+</vector>
