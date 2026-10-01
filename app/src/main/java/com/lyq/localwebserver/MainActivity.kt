@@ -111,7 +111,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun pickFiles() {
-        pickFile.launch(arrayOf("*/*"))
+        pickFile.launch("*/*")
     }
 
     private fun copyFileToSite(uri: Uri) {
