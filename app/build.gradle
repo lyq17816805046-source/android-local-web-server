@@ -21,8 +21,8 @@ android {
         applicationId 'com.lyq.localwebserver'
         minSdk 26
         targetSdk 34
-        versionCode 10
-        versionName '6.1.1'
+        versionCode 11
+        versionName '7.0.0-beta'
     }
 
     buildTypes {
@@ -51,4 +51,5 @@ dependencies {
     implementation 'androidx.activity:activity-ktx:1.9.2'
     implementation 'androidx.documentfile:documentfile:1.0.1'
     implementation 'com.jcraft:jsch:0.1.55'
+    implementation 'com.google.zxing:core:3.5.3'
 }
