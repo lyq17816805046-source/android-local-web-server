@@ -61,10 +61,18 @@ class MainActivity : ComponentActivity() {
     private lateinit var switchTunnel: com.google.android.material.switchmaterial.SwitchMaterial
     private lateinit var tunnelStatus: TextView
     private lateinit var tunnelUrl: TextView
+    private lateinit var btnProvider1: com.google.android.material.button.MaterialButton
+    private lateinit var btnProvider2: com.google.android.material.button.MaterialButton
     private lateinit var btnTestConnection: com.google.android.material.button.MaterialButton
     private lateinit var statsView: TextView
-    private var selectedProvider: Provider = TunnelService.PROVIDERS[0]
+    private var selectedProvider: Provider = TunnelService.LOCALHOST_RUN
     private var accessPassword: String? = null
+    // 自定义服务器参数（从 SharedPreferences 恢复）
+    private var customHost: String = ""
+    private var customPort: Int = 22
+    private var customRemotePort: Int = 80
+    private var customUsername: String = "root"
+    private var customPassword: String = ""
 
     private val statsReceiver = object : BroadcastReceiver() {
         override fun onReceive(c: Context?, i: Intent?) {
@@ -110,6 +118,8 @@ class MainActivity : ComponentActivity() {
             switchTunnel = findViewById(R.id.switchTunnel)
             tunnelStatus = findViewById(R.id.tunnelStatus)
             tunnelUrl = findViewById(R.id.tunnelUrl)
+            btnProvider1 = findViewById(R.id.btnProvider1)
+            btnProvider2 = findViewById(R.id.btnProvider2)
             btnTestConnection = findViewById(R.id.btnTestConnection)
             statsView = findViewById(R.id.statsView)
 
@@ -125,6 +135,14 @@ class MainActivity : ComponentActivity() {
             if (savedSite != null && savedSite.isNotEmpty()) {
                 WebServerService.currentSite = savedSite
             }
+
+            // 恢复自定义服务器参数
+            val cprefs = getSharedPreferences("settings", MODE_PRIVATE)
+            customHost = cprefs.getString("custom_host", "") ?: ""
+            customPort = cprefs.getInt("custom_port", 22)
+            customRemotePort = cprefs.getInt("custom_remote_port", 80)
+            customUsername = cprefs.getString("custom_username", "root") ?: "root"
+            customPassword = cprefs.getString("custom_password", "") ?: ""
 
             switchServer.setOnCheckedChangeListener { _, checked ->
                 if (checked) startServer() else stopServer()
@@ -142,6 +160,9 @@ class MainActivity : ComponentActivity() {
                     stopTunnel()
                 }
             }
+
+            btnProvider1.setOnClickListener { selectBuiltinProvider() }
+            btnProvider2.setOnClickListener { showCustomProviderDialog() }
 
             btnTestConnection.setOnClickListener { testProviderConnection() }
 
@@ -245,9 +266,17 @@ class MainActivity : ComponentActivity() {
         tunnelUrl.visibility = View.GONE
         tunnelUrl.text = ""
         tunnelStatus.text = "正在连接 ${selectedProvider.label} ..."
-        ContextCompat.startForegroundService(this, Intent(this, TunnelService::class.java)
+        val intent = Intent(this, TunnelService::class.java)
             .putExtra("port", p)
-            .putExtra("provider", selectedProvider.key))
+            .putExtra("provider", selectedProvider.key)
+        if (selectedProvider.key == "custom") {
+            intent.putExtra("custom_host", customHost)
+                .putExtra("custom_port", customPort)
+                .putExtra("custom_remote_port", customRemotePort)
+                .putExtra("custom_username", customUsername)
+                .putExtra("custom_password", customPassword)
+        }
+        ContextCompat.startForegroundService(this, intent)
     }
 
     private fun stopTunnel() {
@@ -255,6 +284,91 @@ class MainActivity : ComponentActivity() {
         tunnelStatus.text = "关闭。开启后可通过外网访问你的站点"
         tunnelUrl.visibility = View.GONE
         tunnelUrl.text = ""
+    }
+
+    // 选择内置 localhost.run
+    private fun selectBuiltinProvider() {
+        selectedProvider = TunnelService.LOCALHOST_RUN
+        btnProvider1.isChecked = true
+        btnProvider2.isChecked = false
+        if (switchTunnel.isChecked) {
+            stopTunnel()
+            handler.postDelayed({ startTunnel() }, 500)
+        }
+    }
+
+    // 自定义服务器弹窗
+    private fun showCustomProviderDialog() {
+        val hostInput = EditText(this).apply {
+            hint = "服务器地址，如 myserver.com 或 1.2.3.4"
+            setText(customHost)
+            setPadding(32, 16, 32, 16)
+        }
+        val portInput = EditText(this).apply {
+            hint = "SSH 端口（默认 22）"
+            inputType = android.text.InputType.TYPE_CLASS_NUMBER
+            setText(customPort.toString())
+            setPadding(32, 16, 32, 16)
+        }
+        val remotePortInput = EditText(this).apply {
+            hint = "公网端口（默认 80）"
+            inputType = android.text.InputType.TYPE_CLASS_NUMBER
+            setText(customRemotePort.toString())
+            setPadding(32, 16, 32, 16)
+        }
+        val userInput = EditText(this).apply {
+            hint = "用户名（默认 root）"
+            setText(customUsername)
+            setPadding(32, 16, 32, 16)
+        }
+        val pwdInput = EditText(this).apply {
+            hint = "密码（无密码留空）"
+            inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
+            setText(customPassword)
+            setPadding(32, 16, 32, 16)
+        }
+        val container = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(40, 16, 40, 16)
+            addView(hostInput)
+            addView(portInput)
+            addView(remotePortInput)
+            addView(userInput)
+            addView(pwdInput)
+        }
+        MaterialAlertDialogBuilder(this)
+            .setTitle("自定义服务器")
+            .setMessage("填入你自己的 SSH 服务器信息（需要服务器开启 SSH 并允许反向隧道）")
+            .setView(container)
+            .setPositiveButton("保存并使用") { _, _ ->
+                customHost = hostInput.text.toString().trim()
+                customPort = portInput.text.toString().toIntOrNull() ?: 22
+                customRemotePort = remotePortInput.text.toString().toIntOrNull() ?: 80
+                customUsername = userInput.text.toString().trim().ifEmpty { "root" }
+                customPassword = pwdInput.text.toString().trim()
+                if (customHost.isEmpty()) {
+                    Snackbar.make(root, "请填写服务器地址", Snackbar.LENGTH_SHORT).show()
+                    return@setPositiveButton
+                }
+                // 持久化
+                getSharedPreferences("settings", MODE_PRIVATE).edit()
+                    .putString("custom_host", customHost)
+                    .putInt("custom_port", customPort)
+                    .putInt("custom_remote_port", customRemotePort)
+                    .putString("custom_username", customUsername)
+                    .putString("custom_password", customPassword)
+                    .apply()
+                selectedProvider = TunnelService.CUSTOM
+                btnProvider1.isChecked = false
+                btnProvider2.isChecked = true
+                if (switchTunnel.isChecked) {
+                    stopTunnel()
+                    handler.postDelayed({ startTunnel() }, 500)
+                }
+                Snackbar.make(root, "已切换到自定义服务器: $customHost", Snackbar.LENGTH_SHORT).show()
+            }
+            .setNegativeButton("取消", null)
+            .show()
     }
 
     // 首次开启公网模式时显示 5 秒警告
@@ -371,13 +485,20 @@ class MainActivity : ComponentActivity() {
             .show()
     }
 
-    // 测试当前服务商连接（简单 TCP socket 检测 22 端口）
+    // 测试当前服务商连接（简单 TCP socket 检测 SSH 端口）
     private fun testProviderConnection() {
         thread(name = "test-conn") {
-            val p = selectedProvider
+            val host = if (selectedProvider.key == "custom") customHost else selectedProvider.host
+            val sshPort = if (selectedProvider.key == "custom") customPort else selectedProvider.port
+            if (host.isEmpty()) {
+                handler.post {
+                    Snackbar.make(root, "请先配置自定义服务器", Snackbar.LENGTH_SHORT).show()
+                }
+                return@thread
+            }
             val ok = try {
                 val socket = java.net.Socket()
-                socket.connect(java.net.InetSocketAddress(p.host, p.port), 8000)
+                socket.connect(java.net.InetSocketAddress(host, sshPort), 8000)
                 socket.close()
                 true
             } catch (e: Exception) {
@@ -385,11 +506,11 @@ class MainActivity : ComponentActivity() {
             }
             handler.post {
                 if (ok) {
-                    Snackbar.make(root, "✅ ${p.label} 连接正常", Snackbar.LENGTH_SHORT).show()
-                    tunnelStatus.text = "✅ ${p.label} 测试连接成功"
+                    Snackbar.make(root, "✅ $host 连接正常", Snackbar.LENGTH_SHORT).show()
+                    tunnelStatus.text = "✅ $host 测试连接成功"
                 } else {
-                    Snackbar.make(root, "❌ ${p.label} 无法连接", Snackbar.LENGTH_LONG).show()
-                    tunnelStatus.text = "❌ ${p.label} 连接失败，请换一个服务商"
+                    Snackbar.make(root, "❌ $host 无法连接", Snackbar.LENGTH_LONG).show()
+                    tunnelStatus.text = "❌ $host 连接失败"
                 }
             }
         }
