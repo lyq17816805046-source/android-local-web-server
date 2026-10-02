@@ -13,10 +13,12 @@ import kotlin.concurrent.thread
 class WebServerService : Service() {
     companion object {
         const val ACTION_LOG = "com.lyq.localwebserver.LOG"
+        const val ACTION_STATS = "com.lyq.localwebserver.STATS"
         var running = false
         var currentSite = "default"
         private var server: ServerSocket? = null
         private var port = 8080
+        private var password: String? = null
 
         fun localIp(): String {
             try {
@@ -45,6 +47,7 @@ class WebServerService : Service() {
         if (site != null && site.isNotEmpty()) {
             currentSite = site
         }
+        password = i?.getStringExtra("password")?.takeIf { it.isNotEmpty() }
         root = File(filesDir, "sites/$currentSite").apply { mkdirs() }
         if (!running) launch()
         else broadcast("已重新加载站点: $currentSite（需重启服务使站点切换生效）")
@@ -76,18 +79,38 @@ class WebServerService : Service() {
     }
 
     private fun handle(s: Socket) {
+        val startMs = System.currentTimeMillis()
         s.use {
             val input = BufferedReader(InputStreamReader(it.getInputStream()))
             val first = input.readLine() ?: return
-            while (input.readLine()?.isNotEmpty() == true) {}
+            var authHeader: String? = null
+            while (true) {
+                val line = input.readLine() ?: break
+                if (line.isEmpty()) break
+                if (line.startsWith("Authorization:")) authHeader = line.substringAfter("Authorization:").trim()
+            }
             val parts = first.split(" ")
             val raw = if (parts.size > 1) parts[1] else "/"
+
+            // 访问密码校验（HTTP Basic Auth）
+            val pwd = password
+            if (pwd != null) {
+                val expected = "Basic " + android.util.Base64.encodeToString((":$pwd").toByteArray(), android.util.Base64.NO_WRAP)
+                if (authHeader != expected) {
+                    writeResponse(it, 401, "text/html; charset=utf-8", "<h1>401 Unauthorized</h1><p>需要访问密码</p>".toByteArray())
+                    broadcast("401  ${raw}")
+                    incrementStats()
+                    return
+                }
+            }
+
             val path = URLDecoder.decode(raw.substringBefore('?'), "UTF-8").removePrefix("/")
             val base = root ?: return
             val safe = File(base, path).canonicalFile
             if (safe.path != base.canonicalPath && !safe.canonicalPath.startsWith(base.canonicalPath + File.separator)) {
                 broadcast("400  非法路径")
                 writeResponse(it, 400, "text/html; charset=utf-8", "<h1>400 Bad Request</h1>".toByteArray())
+                incrementStats()
                 return
             }
             val target = if (safe.isDirectory) File(safe, "index.html") else safe
@@ -96,7 +119,9 @@ class WebServerService : Service() {
             else if (safe.isDirectory) directory(safe, path, currentSite).toByteArray()
             else notFoundPage(raw).toByteArray()
             writeResponse(it, code, mime(target.name), body)
-            broadcast("${code}  ${raw}")
+            val dur = System.currentTimeMillis() - startMs
+            broadcast("${code}  ${raw}  (${dur}ms)")
+            incrementStats()
         }
     }
 
@@ -105,6 +130,7 @@ class WebServerService : Service() {
         val status = when (code) {
             200 -> "OK"
             400 -> "Bad Request"
+            401 -> "Unauthorized"
             404 -> "Not Found"
             else -> "Error"
         }
@@ -196,6 +222,33 @@ class WebServerService : Service() {
     private fun broadcast(s: String) {
         val t = SimpleDateFormat("HH:mm:ss", Locale.CHINA).format(Date())
         sendBroadcast(Intent(ACTION_LOG).putExtra("message", "[$t] $s"))
+    }
+
+    // 访问统计：持久化 totalVisits，广播给 UI
+    private fun incrementStats() {
+        try {
+            val prefs = getSharedPreferences("stats", MODE_PRIVATE)
+            val total = prefs.getLong("total_visits", 0L) + 1
+            val today = SimpleDateFormat("yyyy-MM-dd", Locale.CHINA).format(Date())
+            val todayKey = "day_$today"
+            val todayCount = prefs.getLong(todayKey, 0L) + 1
+            prefs.edit()
+                .putLong("total_visits", total)
+                .putLong(todayKey, todayCount)
+                .putString("last_today", today)
+                .apply()
+            sendBroadcast(Intent(ACTION_STATS)
+                .putExtra("total", total)
+                .putExtra("today", todayCount))
+        } catch (_: Exception) {}
+    }
+
+    fun getStats(): Pair<Long, Long> {
+        val prefs = getSharedPreferences("stats", MODE_PRIVATE)
+        val total = prefs.getLong("total_visits", 0L)
+        val today = SimpleDateFormat("yyyy-MM-dd", Locale.CHINA).format(Date())
+        val todayCount = prefs.getLong("day_$today", 0L)
+        return Pair(total, todayCount)
     }
 
     private fun notifyChannel() {
