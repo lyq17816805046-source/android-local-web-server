@@ -11,6 +11,7 @@ import android.widget.*
 import androidx.activity.ComponentActivity
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
+import androidx.core.content.FileProvider
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.snackbar.Snackbar
 import org.json.JSONObject
@@ -81,6 +82,8 @@ class MainActivity : ComponentActivity() {
     private lateinit var toolbar: com.google.android.material.appbar.MaterialToolbar
     private var selectedProvider: Provider = TunnelService.LOCALHOST_RUN
     private var accessPassword: String? = null
+    // 更新下载相关
+    private var downloadProgress: android.widget.ProgressDialog? = null
     // 自定义服务器参数（从 SharedPreferences 恢复）
     private var customHost: String = ""
     private var customPort: Int = 22
@@ -902,44 +905,147 @@ class MainActivity : ComponentActivity() {
 
     private fun checkUpdate() {
         thread(name = "check-update") {
-            var result = "检查失败，请稍后再试"
+            var latestTag: String? = null
+            var apkUrl: String? = null
+            var error: String? = null
             try {
                 val currentVersion = try {
                     packageManager.getPackageInfo(packageName, 0).versionName ?: "未知"
                 } catch (_: Exception) { "未知" }
-                val url = java.net.URL("https://api.github.com/repos/lyqxml/android-local-web-server/releases/latest")
-                val conn = url.openConnection() as java.net.HttpURLConnection
-                conn.connectTimeout = 8000
-                conn.readTimeout = 8000
+                val apiUrl = java.net.URL("https://api.github.com/repos/lyqxml/android-local-web-server/releases/latest")
+                val conn = apiUrl.openConnection() as java.net.HttpURLConnection
+                conn.connectTimeout = 10000
+                conn.readTimeout = 10000
                 conn.setRequestProperty("Accept", "application/vnd.github+json")
                 val text = conn.inputStream.bufferedReader().readText()
-                val latestTag = Regex("\"tag_name\"\\s*:\\s*\"([^\"]+)\"").find(text)?.groupValues?.get(1)
-                result = if (latestTag != null) {
-                    val latestVersion = latestTag.removePrefix("v")
-                    val curVersion = currentVersion.removePrefix("v")
-                    if (latestVersion == curVersion) {
-                        "已是最新版本（$currentVersion）"
-                    } else {
-                        "当前版本：$currentVersion\n最新版本：$latestTag\n\n请到 GitHub Releases 下载更新"
-                    }
-                } else {
-                    "无法解析版本信息"
-                }
+                latestTag = Regex("\"tag_name\"\\s*:\\s*\"([^\"]+)\"").find(text)?.groupValues?.get(1)
+                apkUrl = Regex("\"browser_download_url\"\\s*:\\s*\"([^\"]+\\.apk)\"").find(text)?.groupValues?.get(1)
+                if (latestTag == null) error = "无法解析版本信息"
             } catch (e: Exception) {
-                result = "检查失败：${e.message}"
+                error = "检查失败：${e.message}"
             }
-            val finalResult = result
+
             handler.post {
-                MaterialAlertDialogBuilder(this)
-                    .setTitle("检查更新")
-                    .setMessage(finalResult)
-                    .setPositiveButton("知道了", null)
-                    .show()
+                when {
+                    error != null -> {
+                        MaterialAlertDialogBuilder(this)
+                            .setTitle("检查更新")
+                            .setMessage(error!!)
+                            .setPositiveButton("知道了", null)
+                            .show()
+                    }
+                    latestTag != null && latestTag!!.removePrefix("v") == currentVersion().removePrefix("v") -> {
+                        MaterialAlertDialogBuilder(this)
+                            .setTitle("检查更新")
+                            .setMessage("已是最新版本（${currentVersion()}）")
+                            .setPositiveButton("知道了", null)
+                            .show()
+                    }
+                    latestTag != null && apkUrl != null -> {
+                        MaterialAlertDialogBuilder(this)
+                            .setTitle("发现新版本")
+                            .setMessage("当前版本：${currentVersion()}\n最新版本：$latestTag\n\n是否立即下载并安装？")
+                            .setPositiveButton("立即更新") { _, _ -> downloadAndInstall(apkUrl!!) }
+                            .setNeutralButton("稍后再说", null)
+                            .show()
+                    }
+                    else -> {
+                        MaterialAlertDialogBuilder(this)
+                            .setTitle("检查更新")
+                            .setMessage("发现新版本 $latestTag，但未找到下载链接\n请到 GitHub Releases 下载")
+                            .setPositiveButton("知道了", null)
+                            .show()
+                    }
+                }
             }
         }
     }
 
+    private fun currentVersion(): String {
+        return try {
+            packageManager.getPackageInfo(packageName, 0).versionName ?: "未知"
+        } catch (_: Exception) { "未知" }
+    }
+
+    // 下载 APK 并唤起安装
+    private fun downloadAndInstall(apkUrl: String) {
+        downloadProgress = android.app.ProgressDialog(this).apply {
+            setProgressStyle(android.app.ProgressDialog.STYLE_HORIZONTAL)
+            setTitle("正在下载更新")
+            setMessage("请稍候...")
+            setCancelable(false)
+            max = 100
+            show()
+        }
+        thread(name = "download-apk") {
+            var success = false
+            var failReason: String? = null
+            try {
+                val apkDir = File(cacheDir, "apk").apply { mkdirs() }
+                val apkFile = File(apkDir, "update.apk")
+                val url = java.net.URL(apkUrl)
+                val conn = url.openConnection() as java.net.HttpURLConnection
+                conn.connectTimeout = 15000
+                conn.readTimeout = 30000
+                conn.instanceFollowRedirects = true
+                val total = conn.contentLengthLong
+                val input = conn.inputStream
+                val output = FileOutputStream(apkFile)
+                val buf = ByteArray(8192)
+                var downloaded = 0L
+                var len: Int
+                while (true) {
+                    len = input.read(buf)
+                    if (len <= 0) break
+                    output.write(buf, 0, len)
+                    downloaded += len
+                    val progress = if (total > 0) ((downloaded * 100 / total).toInt()) else 0
+                    val p = progress
+                    handler.post {
+                        downloadProgress?.progress = p
+                    }
+                }
+                output.close()
+                input.close()
+                success = apkFile.exists() && apkFile.length() > 0
+            } catch (e: Exception) {
+                failReason = e.message
+            }
+            val finalSuccess = success
+            val finalFail = failReason
+            handler.post {
+                downloadProgress?.dismiss()
+                downloadProgress = null
+                if (finalSuccess) {
+                    installApk()
+                } else {
+                    Snackbar.make(root, "下载失败：${finalFail ?: "未知错误"}", Snackbar.LENGTH_LONG).show()
+                }
+            }
+        }
+    }
+
+    // 用 FileProvider 唤起安装
+    private fun installApk() {
+        try {
+            val apkFile = File(cacheDir, "apk/update.apk")
+            if (!apkFile.exists()) {
+                Snackbar.make(root, "APK 文件不存在", Snackbar.LENGTH_SHORT).show()
+                return
+            }
+            val uri = FileProvider.getUriForFile(this, "$packageName.fileprovider", apkFile)
+            val intent = Intent(Intent.ACTION_VIEW)
+                .setDataAndType(uri, "application/vnd.android.package-archive")
+                .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            startActivity(intent)
+        } catch (e: Exception) {
+            Snackbar.make(root, "安装失败：${e.message}", Snackbar.LENGTH_LONG).show()
+        }
+    }
+
     override fun onDestroy() {
+        try { downloadProgress?.dismiss() } catch (_: Exception) {}
         try { unregisterReceiver(receiver) } catch (_: Exception) {}
         try { unregisterReceiver(tunnelReceiver) } catch (_: Exception) {}
         try { unregisterReceiver(statsReceiver) } catch (_: Exception) {}
