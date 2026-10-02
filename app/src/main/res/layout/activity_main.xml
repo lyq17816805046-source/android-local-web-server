@@ -199,8 +199,11 @@
                             android:layout_width="0dp"
                             android:layout_height="44dp"
                             android:layout_weight="1"
-                            android:text="localhost.run"
-                            android:textSize="11sp" />
+                            android:text="Localhost"
+                            android:textSize="12sp"
+                            android:maxLines="1"
+                            android:ellipsize="end"
+                            android:paddingHorizontal="2dp" />
 
                         <com.google.android.material.button.MaterialButton
                             android:id="@+id/btnProvider2"
@@ -209,8 +212,11 @@
                             android:layout_height="44dp"
                             android:layout_weight="1"
                             android:layout_marginStart="6dp"
-                            android:text="serveo.net"
-                            android:textSize="11sp" />
+                            android:text="Serveo"
+                            android:textSize="12sp"
+                            android:maxLines="1"
+                            android:ellipsize="end"
+                            android:paddingHorizontal="2dp" />
 
                         <com.google.android.material.button.MaterialButton
                             android:id="@+id/btnProvider3"
@@ -219,8 +225,11 @@
                             android:layout_height="44dp"
                             android:layout_weight="1"
                             android:layout_marginStart="6dp"
-                            android:text="openport.io"
-                            android:textSize="11sp" />
+                            android:text="OpenPort"
+                            android:textSize="12sp"
+                            android:maxLines="1"
+                            android:ellipsize="end"
+                            android:paddingHorizontal="2dp" />
 
                     </LinearLayout>
 
