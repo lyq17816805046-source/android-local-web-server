@@ -21,6 +21,9 @@ import kotlin.concurrent.thread
  *  - serveo.net      (80 端口)
  *  - openport.io     (动态端口)
  */
+// 隧道服务商定义（顶层，供 MainActivity 引用）
+data class Provider(val key: String, val label: String, val host: String, val port: Int, val remotePort: Int)
+
 class TunnelService : Service() {
 
     companion object {
@@ -29,9 +32,6 @@ class TunnelService : Service() {
         const val EXTRA_URL = "url"
         var active = false
         var publicUrl: String? = null
-
-        // 隧道服务商定义
-        data class Provider(val key: String, val label: String, val host: String, val port: Int, val remotePort: Int)
 
         val PROVIDERS = listOf(
             Provider("localhost.run", "localhost.run", "localhost.run", 22, 80),
