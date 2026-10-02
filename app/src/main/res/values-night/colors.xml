@@ -17,4 +17,5 @@
     <color name="success">#66BB6A</color>
     <color name="danger">#EF5350</color>
     <color name="accent">#5B8DEF</color>
+    <color name="bottom_bg">#F214181F</color>
 </resources>
