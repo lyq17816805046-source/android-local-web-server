@@ -65,6 +65,20 @@ class MainActivity : ComponentActivity() {
     private lateinit var btnProvider2: com.google.android.material.button.MaterialButton
     private lateinit var btnTestConnection: com.google.android.material.button.MaterialButton
     private lateinit var statsView: TextView
+    // 三页容器 + 底部导航
+    private lateinit var pageHome: View
+    private lateinit var pageFiles: View
+    private lateinit var pageConsole: View
+    private lateinit var tabHome: View
+    private lateinit var tabFiles: View
+    private lateinit var tabConsole: View
+    private lateinit var tabHomeIcon: ImageView
+    private lateinit var tabFilesIcon: ImageView
+    private lateinit var tabConsoleIcon: ImageView
+    private lateinit var tabHomeText: TextView
+    private lateinit var tabFilesText: TextView
+    private lateinit var tabConsoleText: TextView
+    private lateinit var toolbar: com.google.android.material.appbar.MaterialToolbar
     private var selectedProvider: Provider = TunnelService.LOCALHOST_RUN
     private var accessPassword: String? = null
     // 自定义服务器参数（从 SharedPreferences 恢复）
@@ -122,6 +136,40 @@ class MainActivity : ComponentActivity() {
             btnProvider2 = findViewById(R.id.btnProvider2)
             btnTestConnection = findViewById(R.id.btnTestConnection)
             statsView = findViewById(R.id.statsView)
+            pageHome = findViewById(R.id.pageHome)
+            pageFiles = findViewById(R.id.pageFiles)
+            pageConsole = findViewById(R.id.pageConsole)
+            tabHome = findViewById(R.id.tabHome)
+            tabFiles = findViewById(R.id.tabFiles)
+            tabConsole = findViewById(R.id.tabConsole)
+            tabHomeIcon = findViewById(R.id.tabHomeIcon)
+            tabFilesIcon = findViewById(R.id.tabFilesIcon)
+            tabConsoleIcon = findViewById(R.id.tabConsoleIcon)
+            tabHomeText = findViewById(R.id.tabHomeText)
+            tabFilesText = findViewById(R.id.tabFilesText)
+            tabConsoleText = findViewById(R.id.tabConsoleText)
+            toolbar = findViewById(R.id.toolbar)
+
+            // 底部导航
+            tabHome.setOnClickListener { switchPage(0) }
+            tabFiles.setOnClickListener { switchPage(1) }
+            tabConsole.setOnClickListener { switchPage(2) }
+
+            // 右上角菜单
+            toolbar.inflateMenu(R.menu.toolbar_menu)
+            toolbar.setOnMenuItemClickListener { item ->
+                when (item.itemId) {
+                    R.id.menu_info -> { showAboutDialog(); true }
+                    else -> false
+                }
+            }
+
+            // 图标着色
+            tabHomeIcon.setColorFilter(ContextCompat.getColor(this, R.color.text_faint))
+            tabFilesIcon.setColorFilter(ContextCompat.getColor(this, R.color.text_faint))
+            tabConsoleIcon.setColorFilter(ContextCompat.getColor(this, R.color.text_faint))
+
+            switchPage(0)
 
             registerReceiver(receiver, IntentFilter(WebServerService.ACTION_LOG), RECEIVER_NOT_EXPORTED)
             registerReceiver(tunnelReceiver, IntentFilter(TunnelService.ACTION_TUNNEL), RECEIVER_NOT_EXPORTED)
@@ -528,7 +576,8 @@ class MainActivity : ComponentActivity() {
     private fun append(s: String) {
         handler.post {
             log.append("$s\n")
-            (log.parent.parent as? ScrollView)?.fullScroll(ScrollView.FOCUS_DOWN)
+            val scrollView = findViewById<ScrollView>(R.id.logScrollView)
+            scrollView.fullScroll(ScrollView.FOCUS_DOWN)
         }
     }
 
@@ -808,6 +857,80 @@ class MainActivity : ComponentActivity() {
                 .show()
         } catch (e: Exception) {
             Snackbar.make(root, "创建站点失败", Snackbar.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun switchPage(index: Int) {
+        pageHome.visibility = if (index == 0) View.VISIBLE else View.GONE
+        pageFiles.visibility = if (index == 1) View.VISIBLE else View.GONE
+        pageConsole.visibility = if (index == 2) View.VISIBLE else View.GONE
+
+        val accent = ContextCompat.getColor(this, R.color.accent)
+        val faint = ContextCompat.getColor(this, R.color.text_faint)
+        val dim = ContextCompat.getColor(this, R.color.text_dim)
+
+        tabHomeIcon.setColorFilter(if (index == 0) accent else faint)
+        tabFilesIcon.setColorFilter(if (index == 1) accent else faint)
+        tabConsoleIcon.setColorFilter(if (index == 2) accent else faint)
+
+        tabHomeText.setTextColor(if (index == 0) accent else dim)
+        tabFilesText.setTextColor(if (index == 1) accent else dim)
+        tabConsoleText.setTextColor(if (index == 2) accent else dim)
+
+        tabHome.isSelected = index == 0
+        tabFiles.isSelected = index == 1
+        tabConsole.isSelected = index == 2
+    }
+
+    private fun showAboutDialog() {
+        val title = getString(R.string.app_name)
+        val version = "7.1.2"
+        val packageName = packageName
+        val msg = "版本：$version\n包名：$packageName\n\n" +
+                "一个纯本地运行的 Android 静态网页托管服务。\n" +
+                "支持多站点、文件导入、二维码分享、访问密码、公网隧道。\n\n" +
+                "已使用固定签名，更新可直接覆盖安装。"
+        MaterialAlertDialogBuilder(this)
+            .setTitle("关于 $title")
+            .setMessage(msg)
+            .setPositiveButton("GitHub 主页") { _, _ ->
+                try {
+                    startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/lyqxml/android-local-web-server")))
+                } catch (_: Exception) {}
+            }
+            .setNeutralButton("检查更新") { _, _ ->
+                checkUpdate()
+            }
+            .setNegativeButton("关闭", null)
+            .show()
+    }
+
+    private fun checkUpdate() {
+        thread(name = "check-update") {
+            var result = "检查失败，请稍后再试"
+            try {
+                val url = java.net.URL("https://api.github.com/repos/lyqxml/android-local-web-server/releases/latest")
+                val conn = url.openConnection() as java.net.HttpURLConnection
+                conn.connectTimeout = 8000
+                conn.readTimeout = 8000
+                conn.setRequestProperty("Accept", "application/vnd.github+json")
+                val text = conn.inputStream.bufferedReader().readText()
+                val tag = Regex("\"tag_name\"\\s*:\\s*\"([^\"]+)\"").find(text)?.groupValues?.get(1)
+                result = if (tag != null) {
+                    if (tag == "v7.1.2") "已是最新版本（$tag）"
+                    else "发现新版本：$tag\n请到 GitHub Releases 下载"
+                } else "无法解析版本信息"
+            } catch (e: Exception) {
+                result = "检查失败：${e.message}"
+            }
+            val finalResult = result
+            handler.post {
+                MaterialAlertDialogBuilder(this)
+                    .setTitle("检查更新")
+                    .setMessage(finalResult)
+                    .setPositiveButton("知道了", null)
+                    .show()
+            }
         }
     }
 
