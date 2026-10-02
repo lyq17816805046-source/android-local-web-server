@@ -8,14 +8,18 @@ import android.content.Intent
 import android.os.Build
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
+import com.jcraft.jsch.ChannelExec
 import com.jcraft.jsch.JSch
 import com.jcraft.jsch.Session
 import com.jcraft.jsch.UserInfo
 import kotlin.concurrent.thread
 
 /**
- * 公网隧道服务：通过免费 SSH 反向隧道（localhost.run / serveo.net）
- * 将本地 HTTP 服务映射到公网，供外网访问。
+ * 公网隧道服务：通过免费 SSH 反向隧道将本地 HTTP 服务映射到公网。
+ * 支持多个服务商：
+ *  - localhost.run   (默认，80 端口)
+ *  - serveo.net      (80 端口)
+ *  - openport.io     (动态端口)
  */
 class TunnelService : Service() {
 
@@ -25,8 +29,21 @@ class TunnelService : Service() {
         const val EXTRA_URL = "url"
         var active = false
         var publicUrl: String? = null
+
+        // 隧道服务商定义
+        data class Provider(val key: String, val label: String, val host: String, val port: Int, val remotePort: Int)
+
+        val PROVIDERS = listOf(
+            Provider("localhost.run", "localhost.run", "localhost.run", 22, 80),
+            Provider("serveo.net", "serveo.net", "serveo.net", 22, 80),
+            Provider("openport.io", "openport.io", "openport.io", 22, 8080)
+        )
+
+        fun providerByKey(key: String): Provider = PROVIDERS.firstOrNull { it.key == key } ?: PROVIDERS[0]
+
         private var session: Session? = null
         private var port = 8080
+        private var currentProvider = PROVIDERS[0]
     }
 
     override fun onCreate() {
@@ -37,6 +54,10 @@ class TunnelService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         port = intent?.getIntExtra("port", 8080) ?: 8080
+        val providerKey = intent?.getStringExtra("provider")
+        if (providerKey != null) {
+            currentProvider = providerByKey(providerKey)
+        }
         if (!active) startTunnel()
         return START_NOT_STICKY
     }
@@ -44,12 +65,11 @@ class TunnelService : Service() {
     private fun startTunnel() {
         thread(name = "tunnel") {
             try {
-                val service = "localhost.run"
-                sendStatus("正在连接免费隧道 $service ...")
                 active = true
+                sendStatus("正在连接 ${currentProvider.label} ...")
 
                 val jsch = JSch()
-                val s = jsch.getSession("nokey", service, 22)
+                val s: Session = jsch.getSession("nokey", currentProvider.host, currentProvider.port)
                 s.setConfig("StrictHostKeyChecking", "no")
                 s.setConfig("PreferredAuthentications", "publickey,password")
                 s.userInfo = object : UserInfo {
@@ -63,20 +83,19 @@ class TunnelService : Service() {
                 s.connect(20000)
                 session = s
 
-                // 反向端口转发：公网 80 -> 本地 port
-                s.setPortForwardingR(80, "localhost", port)
+                // 反向端口转发：公网 remotePort -> 本地 port
+                s.setPortForwardingR(currentProvider.remotePort, "localhost", port)
                 sendStatus("隧道已建立，等待分配公网地址...")
 
-                // 读取 shell 输出，解析公网 URL
-                val channel = s.openChannel("shell")
-                channel.setInputStream(null)
+                // 读取输出解析公网 URL
+                val channel: com.jcraft.jsch.Channel = s.openChannel("shell")
                 val reader = channel.inputStream.bufferedReader()
                 channel.connect()
 
                 var found = false
                 reader.forEachLine { line ->
                     if (!found) {
-                        val url = Regex("https?://[a-zA-Z0-9.-]+\\.(lhr\\.life|serveo\\.net|localhost\\.run)").find(line)?.value
+                        val url = extractUrl(line, currentProvider.key)
                         if (url != null) {
                             found = true
                             publicUrl = url
@@ -86,7 +105,6 @@ class TunnelService : Service() {
                     }
                 }
 
-                // 循环结束 = 连接断开
                 active = false
                 publicUrl = null
                 session = null
@@ -99,6 +117,15 @@ class TunnelService : Service() {
                 stopSelf()
             }
         }
+    }
+
+    private fun extractUrl(line: String, providerKey: String): String? {
+        val pattern = when (providerKey) {
+            "serveo.net" -> Regex("https?://[a-zA-Z0-9.-]+\\.serveo\\.net")
+            "openport.io" -> Regex("https?://[a-zA-Z0-9.-]+\\.openport\\.io")
+            else -> Regex("https?://[a-zA-Z0-9.-]+\\.(lhr\\.life|localhost\\.run)")
+        }
+        return pattern.find(line)?.value
     }
 
     private fun sendStatus(s: String) {
