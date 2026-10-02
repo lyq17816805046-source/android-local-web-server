@@ -135,6 +135,54 @@
 
                     </LinearLayout>
 
+                    <!-- 访问统计 -->
+                    <TextView
+                        android:id="@+id/statsView"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="今日访问 0 · 累计访问 0"
+                        android:textSize="13sp"
+                        android:textColor="@color/text_dim"
+                        android:layout_marginTop="12dp" />
+
+                    <!-- 操作按钮行 -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:layout_marginTop="8dp">
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btnQRCode"
+                            style="@style/Widget.Material3.Button.TonalButton"
+                            android:layout_width="0dp"
+                            android:layout_height="44dp"
+                            android:layout_weight="1"
+                            android:text="二维码"
+                            android:textSize="13sp" />
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btnCopyAddr"
+                            style="@style/Widget.Material3.Button.TonalButton"
+                            android:layout_width="0dp"
+                            android:layout_height="44dp"
+                            android:layout_weight="1"
+                            android:layout_marginStart="8dp"
+                            android:text="复制地址"
+                            android:textSize="13sp" />
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btnSetPassword"
+                            style="@style/Widget.Material3.Button.OutlinedButton"
+                            android:layout_width="0dp"
+                            android:layout_height="44dp"
+                            android:layout_weight="1"
+                            android:layout_marginStart="8dp"
+                            android:text="访问密码"
+                            android:textSize="13sp" />
+
+                    </LinearLayout>
+
                 </LinearLayout>
 
             </com.google.android.material.card.MaterialCardView>
