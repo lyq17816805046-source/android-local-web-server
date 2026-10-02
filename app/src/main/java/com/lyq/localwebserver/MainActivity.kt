@@ -61,9 +61,6 @@ class MainActivity : ComponentActivity() {
     private lateinit var switchTunnel: com.google.android.material.switchmaterial.SwitchMaterial
     private lateinit var tunnelStatus: TextView
     private lateinit var tunnelUrl: TextView
-    private lateinit var btnProvider1: com.google.android.material.button.MaterialButton
-    private lateinit var btnProvider2: com.google.android.material.button.MaterialButton
-    private lateinit var btnProvider3: com.google.android.material.button.MaterialButton
     private lateinit var btnTestConnection: com.google.android.material.button.MaterialButton
     private lateinit var statsView: TextView
     private var selectedProvider: Provider = TunnelService.PROVIDERS[0]
@@ -113,9 +110,6 @@ class MainActivity : ComponentActivity() {
             switchTunnel = findViewById(R.id.switchTunnel)
             tunnelStatus = findViewById(R.id.tunnelStatus)
             tunnelUrl = findViewById(R.id.tunnelUrl)
-            btnProvider1 = findViewById(R.id.btnProvider1)
-            btnProvider2 = findViewById(R.id.btnProvider2)
-            btnProvider3 = findViewById(R.id.btnProvider3)
             btnTestConnection = findViewById(R.id.btnTestConnection)
             statsView = findViewById(R.id.statsView)
 
@@ -149,10 +143,6 @@ class MainActivity : ComponentActivity() {
                 }
             }
 
-            btnProvider1.setOnClickListener { selectProvider(TunnelService.PROVIDERS[0]) }
-            btnProvider2.setOnClickListener { selectProvider(TunnelService.PROVIDERS[1]) }
-            btnProvider3.setOnClickListener { selectProvider(TunnelService.PROVIDERS[2]) }
-
             btnTestConnection.setOnClickListener { testProviderConnection() }
 
             findViewById<com.google.android.material.button.MaterialButton>(R.id.btnQRCode).setOnClickListener { showQRCode() }
@@ -174,7 +164,6 @@ class MainActivity : ComponentActivity() {
 
             updateUI(false)
             refreshFileList()
-            updateProviderButtons()
             refreshStatsFromPrefs()
             handleIncomingIntent(intent)
         } catch (e: Exception) {
@@ -294,32 +283,6 @@ class MainActivity : ComponentActivity() {
                 switchTunnel.isChecked = false
             }
             .show()
-    }
-
-    // 选择隧道服务商（仅视觉高亮；切换关状态就生效）
-    private fun selectProvider(p: Provider) {
-        selectedProvider = p
-        updateProviderButtons()
-        if (switchTunnel.isChecked) {
-            // 若正在运行，切服务商需重启隧道
-            stopTunnel()
-            handler.postDelayed({ startTunnel() }, 500)
-        }
-    }
-
-    private fun updateProviderButtons() {
-        val arr = arrayOf(btnProvider1, btnProvider2, btnProvider3)
-        TunnelService.PROVIDERS.forEachIndexed { i, p ->
-            val selected = (p.key == selectedProvider.key)
-            arr[i].isChecked = selected
-            if (selected) {
-                arr[i].setStrokeColorResource(android.R.color.holo_blue_light)
-                arr[i].setStrokeWidth(3)
-            } else {
-                arr[i].setStrokeColorResource(android.R.color.darker_gray)
-                arr[i].setStrokeWidth(1)
-            }
-        }
     }
 
     // 从 SharedPreferences 读统计刷新
