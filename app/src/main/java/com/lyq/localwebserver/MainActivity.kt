@@ -155,8 +155,7 @@ class MainActivity : ComponentActivity() {
             tabFiles.setOnClickListener { switchPage(1) }
             tabConsole.setOnClickListener { switchPage(2) }
 
-            // 右上角菜单
-            toolbar.inflateMenu(R.menu.toolbar_menu)
+            // 右上角菜单（已在布局通过 app:menu 配置）
             toolbar.setOnMenuItemClickListener { item ->
                 when (item.itemId) {
                     R.id.menu_info -> { showAboutDialog(); true }
