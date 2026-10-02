@@ -19,7 +19,14 @@ import kotlin.concurrent.thread
  * 仅保留仍在运行的服务商：localhost.run
  */
 // 隧道服务商定义（顶层，供 MainActivity 引用）
-data class Provider(val key: String, val label: String, val host: String, val port: Int, val remotePort: Int)
+data class Provider(
+    val key: String,
+    val label: String,
+    val host: String,
+    val port: Int,
+    val remotePort: Int,
+    val username: String = "nokey"
+)
 
 class TunnelService : Service() {
 
@@ -30,16 +37,20 @@ class TunnelService : Service() {
         var active = false
         var publicUrl: String? = null
 
-        val PROVIDERS = listOf(
-            Provider("localhost.run", "localhost.run", "localhost.run", 22, 80)
-        )
+        val LOCALHOST_RUN = Provider("localhost.run", "localhost.run", "localhost.run", 22, 80, "nokey")
+        // 自定义服务器，默认占位，实际从 intent 传入
+        val CUSTOM = Provider("custom", "自定义服务器", "", 22, 80, "root")
 
-        fun providerByKey(key: String): Provider = PROVIDERS.firstOrNull { it.key == key } ?: PROVIDERS[0]
+        val PROVIDERS = listOf(LOCALHOST_RUN, CUSTOM)
+
+        fun providerByKey(key: String): Provider = PROVIDERS.firstOrNull { it.key == key } ?: LOCALHOST_RUN
 
         private var session: Session? = null
         private var port = 8080
-        private var currentProvider = PROVIDERS[0]
+        private var currentProvider = LOCALHOST_RUN
     }
+
+    private var currentProviderCustomPassword: String = ""
 
     override fun onCreate() {
         super.onCreate()
@@ -51,7 +62,19 @@ class TunnelService : Service() {
         port = intent?.getIntExtra("port", 8080) ?: 8080
         val providerKey = intent?.getStringExtra("provider")
         if (providerKey != null) {
-            currentProvider = providerByKey(providerKey)
+            if (providerKey == "custom") {
+                // 自定义服务器：从 intent 读取 host/port/remotePort/username
+                val host = intent.getStringExtra("custom_host")?.takeIf { it.isNotEmpty() } ?: return START_NOT_STICKY
+                val sshPort = intent.getIntExtra("custom_port", 22)
+                val remotePort = intent.getIntExtra("custom_remote_port", 80)
+                val username = intent.getStringExtra("custom_username") ?: "root"
+                val password = intent.getStringExtra("custom_password") ?: ""
+                currentProvider = Provider("custom", "自定义服务器", host, sshPort, remotePort, username)
+                currentProviderCustomPassword = password
+            } else {
+                currentProvider = providerByKey(providerKey)
+                currentProviderCustomPassword = ""
+            }
         }
         if (!active) startTunnel()
         return START_NOT_STICKY
@@ -64,12 +87,15 @@ class TunnelService : Service() {
                 sendStatus("正在连接 ${currentProvider.label} ...")
 
                 val jsch = JSch()
-                val s: Session = jsch.getSession("nokey", currentProvider.host, currentProvider.port)
+                val s: Session = jsch.getSession(currentProvider.username, currentProvider.host, currentProvider.port)
                 s.setConfig("StrictHostKeyChecking", "no")
                 s.setConfig("PreferredAuthentications", "publickey,password")
+                if (currentProviderCustomPassword.isNotEmpty()) {
+                    s.setPassword(currentProviderCustomPassword)
+                }
                 s.userInfo = object : UserInfo {
                     override fun getPassphrase(): String? = null
-                    override fun getPassword(): String? = ""
+                    override fun getPassword(): String? = currentProviderCustomPassword
                     override fun promptPassword(message: String?): Boolean = true
                     override fun promptPassphrase(message: String?): Boolean = true
                     override fun promptYesNo(message: String?): Boolean = true
