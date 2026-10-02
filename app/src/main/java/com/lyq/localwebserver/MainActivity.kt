@@ -883,20 +883,16 @@ class MainActivity : ComponentActivity() {
 
     private fun showAboutDialog() {
         val title = getString(R.string.app_name)
-        val version = "7.1.2"
-        val packageName = packageName
-        val msg = "版本：$version\n包名：$packageName\n\n" +
+        val versionName = try {
+            packageManager.getPackageInfo(packageName, 0).versionName ?: "未知"
+        } catch (_: Exception) { "未知" }
+        val msg = "版本：$versionName\n包名：$packageName\n\n" +
                 "一个纯本地运行的 Android 静态网页托管服务。\n" +
                 "支持多站点、文件导入、二维码分享、访问密码、公网隧道。\n\n" +
                 "已使用固定签名，更新可直接覆盖安装。"
         MaterialAlertDialogBuilder(this)
             .setTitle("关于 $title")
             .setMessage(msg)
-            .setPositiveButton("GitHub 主页") { _, _ ->
-                try {
-                    startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/lyqxml/android-local-web-server")))
-                } catch (_: Exception) {}
-            }
             .setNeutralButton("检查更新") { _, _ ->
                 checkUpdate()
             }
@@ -908,17 +904,27 @@ class MainActivity : ComponentActivity() {
         thread(name = "check-update") {
             var result = "检查失败，请稍后再试"
             try {
+                val currentVersion = try {
+                    packageManager.getPackageInfo(packageName, 0).versionName ?: "未知"
+                } catch (_: Exception) { "未知" }
                 val url = java.net.URL("https://api.github.com/repos/lyqxml/android-local-web-server/releases/latest")
                 val conn = url.openConnection() as java.net.HttpURLConnection
                 conn.connectTimeout = 8000
                 conn.readTimeout = 8000
                 conn.setRequestProperty("Accept", "application/vnd.github+json")
                 val text = conn.inputStream.bufferedReader().readText()
-                val tag = Regex("\"tag_name\"\\s*:\\s*\"([^\"]+)\"").find(text)?.groupValues?.get(1)
-                result = if (tag != null) {
-                    if (tag == "v7.1.2") "已是最新版本（$tag）"
-                    else "发现新版本：$tag\n请到 GitHub Releases 下载"
-                } else "无法解析版本信息"
+                val latestTag = Regex("\"tag_name\"\\s*:\\s*\"([^\"]+)\"").find(text)?.groupValues?.get(1)
+                result = if (latestTag != null) {
+                    val latestVersion = latestTag.removePrefix("v")
+                    val curVersion = currentVersion.removePrefix("v")
+                    if (latestVersion == curVersion) {
+                        "已是最新版本（$currentVersion）"
+                    } else {
+                        "当前版本：$currentVersion\n最新版本：$latestTag\n\n请到 GitHub Releases 下载更新"
+                    }
+                } else {
+                    "无法解析版本信息"
+                }
             } catch (e: Exception) {
                 result = "检查失败：${e.message}"
             }
