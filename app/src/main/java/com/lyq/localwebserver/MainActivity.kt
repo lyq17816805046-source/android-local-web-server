@@ -65,7 +65,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var btnProvider2: com.google.android.material.button.MaterialButton
     private lateinit var btnProvider3: com.google.android.material.button.MaterialButton
     private lateinit var btnTestConnection: com.google.android.material.button.MaterialButton
-    private var selectedProvider: TunnelService.Provider = TunnelService.PROVIDERS[0]
+    private var selectedProvider: Provider = TunnelService.PROVIDERS[0]
 
     private val tunnelReceiver = object : BroadcastReceiver() {
         override fun onReceive(c: Context?, i: Intent?) {
@@ -267,7 +267,7 @@ class MainActivity : ComponentActivity() {
     }
 
     // 选择隧道服务商（仅视觉高亮；切换关状态就生效）
-    private fun selectProvider(p: TunnelService.Provider) {
+    private fun selectProvider(p: Provider) {
         selectedProvider = p
         updateProviderButtons()
         if (switchTunnel.isChecked) {
