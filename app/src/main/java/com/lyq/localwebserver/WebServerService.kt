@@ -97,7 +97,9 @@ class WebServerService : Service() {
             if (pwd != null) {
                 val expected = "Basic " + android.util.Base64.encodeToString((":$pwd").toByteArray(), android.util.Base64.NO_WRAP)
                 if (authHeader != expected) {
-                    writeResponse(it, 401, "text/html; charset=utf-8", "<h1>401 Unauthorized</h1><p>需要访问密码</p>".toByteArray())
+                    writeResponse(it, 401, "text/html; charset=utf-8",
+                        "<!DOCTYPE html><meta charset='utf-8'><h1>401 需要访问密码</h1><p>请输入密码访问本站。</p>".toByteArray(),
+                        "WWW-Authenticate: Basic realm=\"LocalWebServer\"\r\n")
                     broadcast("401  ${raw}")
                     incrementStats()
                     return
@@ -125,7 +127,7 @@ class WebServerService : Service() {
         }
     }
 
-    private fun writeResponse(s: Socket, code: Int, type: String, body: ByteArray) {
+    private fun writeResponse(s: Socket, code: Int, type: String, body: ByteArray, extraHeaders: String? = null) {
         val out = s.getOutputStream()
         val status = when (code) {
             200 -> "OK"
@@ -134,7 +136,13 @@ class WebServerService : Service() {
             404 -> "Not Found"
             else -> "Error"
         }
-        out.write("HTTP/1.1 $code $status\r\nContent-Type: $type\r\nContent-Length: ${body.size}\r\nConnection: close\r\n\r\n".toByteArray())
+        val sb = StringBuilder()
+        sb.append("HTTP/1.1 $code $status\r\n")
+        sb.append("Content-Type: $type\r\n")
+        sb.append("Content-Length: ${body.size}\r\n")
+        if (extraHeaders != null) sb.append(extraHeaders)
+        sb.append("Connection: close\r\n\r\n")
+        out.write(sb.toString().toByteArray())
         out.write(body)
         out.flush()
     }
