@@ -126,6 +126,12 @@ class MainActivity : ComponentActivity() {
             // 读取已保存的访问密码
             accessPassword = getSharedPreferences("settings", MODE_PRIVATE).getString("access_password", null)
 
+            // 恢复上次使用的站点（防止退出重进后站点丢失）
+            val savedSite = getSharedPreferences("settings", MODE_PRIVATE).getString("current_site", null)
+            if (savedSite != null && savedSite.isNotEmpty()) {
+                WebServerService.currentSite = savedSite
+            }
+
             switchServer.setOnCheckedChangeListener { _, checked ->
                 if (checked) startServer() else stopServer()
             }
@@ -600,8 +606,10 @@ class MainActivity : ComponentActivity() {
             }
             tmpZip.delete()
 
-            // 同步当前站点
+            // 同步当前站点并持久化
             WebServerService.currentSite = targetSite
+            getSharedPreferences("settings", MODE_PRIVATE)
+                .edit().putString("current_site", targetSite).apply()
             append("[ZIP] 站点导入完成: ${siteName ?: targetSite}，共 $imported 个文件")
             handler.post {
                 val msg = if (siteName != null) "已导入站点「$siteName」：$imported 个文件" else "已导入 $imported 个文件"
@@ -659,6 +667,8 @@ class MainActivity : ComponentActivity() {
 
     private fun restartServerWithSite(newSite: String) {
         WebServerService.currentSite = newSite
+        getSharedPreferences("settings", MODE_PRIVATE)
+            .edit().putString("current_site", newSite).apply()
         File(filesDir, "sites/$newSite").mkdirs()
         refreshFileList()
         stopServer()
