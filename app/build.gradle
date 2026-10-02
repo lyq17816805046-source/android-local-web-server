@@ -21,8 +21,8 @@ android {
         applicationId 'com.lyq.localwebserver'
         minSdk 26
         targetSdk 34
-        versionCode 17
-        versionName '7.1.3'
+        versionCode 18
+        versionName '7.1.4'
     }
 
     buildTypes {
