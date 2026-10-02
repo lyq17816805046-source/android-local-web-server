@@ -65,7 +65,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var btnProvider2: com.google.android.material.button.MaterialButton
     private lateinit var btnProvider3: com.google.android.material.button.MaterialButton
     private lateinit var btnTestConnection: com.google.android.material.button.MaterialButton
-    private var selectedProvider = TunnelService.PROVIDERS[0]
+    private var selectedProvider: TunnelService.Provider = TunnelService.PROVIDERS[0]
 
     private val tunnelReceiver = object : BroadcastReceiver() {
         override fun onReceive(c: Context?, i: Intent?) {
