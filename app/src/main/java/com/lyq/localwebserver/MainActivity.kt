@@ -349,46 +349,21 @@ class MainActivity : ComponentActivity() {
 
     // 自定义服务器弹窗
     private fun showCustomProviderDialog() {
-        val hostInput = EditText(this).apply {
-            hint = "服务器地址，如 myserver.com 或 1.2.3.4"
-            setText(customHost)
-            setPadding(32, 16, 32, 16)
-        }
-        val portInput = EditText(this).apply {
-            hint = "SSH 端口（默认 22）"
-            inputType = android.text.InputType.TYPE_CLASS_NUMBER
-            setText(customPort.toString())
-            setPadding(32, 16, 32, 16)
-        }
-        val remotePortInput = EditText(this).apply {
-            hint = "公网端口（默认 80）"
-            inputType = android.text.InputType.TYPE_CLASS_NUMBER
-            setText(customRemotePort.toString())
-            setPadding(32, 16, 32, 16)
-        }
-        val userInput = EditText(this).apply {
-            hint = "用户名（默认 root）"
-            setText(customUsername)
-            setPadding(32, 16, 32, 16)
-        }
-        val pwdInput = EditText(this).apply {
-            hint = "密码（无密码留空）"
-            inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
-            setText(customPassword)
-            setPadding(32, 16, 32, 16)
-        }
-        val container = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(40, 16, 40, 16)
-            addView(hostInput)
-            addView(portInput)
-            addView(remotePortInput)
-            addView(userInput)
-            addView(pwdInput)
-        }
+        val container = layoutInflater.inflate(R.layout.dialog_custom_server, null)
+        val hostInput = container.findViewById<EditText>(R.id.etCustomHost)
+        val portInput = container.findViewById<EditText>(R.id.etCustomPort)
+        val remotePortInput = container.findViewById<EditText>(R.id.etCustomRemotePort)
+        val userInput = container.findViewById<EditText>(R.id.etCustomUsername)
+        val pwdInput = container.findViewById<EditText>(R.id.etCustomPassword)
+
+        hostInput.setText(customHost)
+        portInput.setText(customPort.toString())
+        remotePortInput.setText(customRemotePort.toString())
+        userInput.setText(customUsername)
+        pwdInput.setText(customPassword)
+
         MaterialAlertDialogBuilder(this)
             .setTitle("自定义服务器")
-            .setMessage("填入你自己的 SSH 服务器信息（需要服务器开启 SSH 并允许反向隧道）")
             .setView(container)
             .setPositiveButton("保存并使用") { _, _ ->
                 customHost = hostInput.text.toString().trim()
