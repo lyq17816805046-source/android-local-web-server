@@ -83,7 +83,7 @@ class MainActivity : ComponentActivity() {
     private var selectedProvider: Provider = TunnelService.LOCALHOST_RUN
     private var accessPassword: String? = null
     // 更新下载相关
-    private var downloadProgress: android.widget.ProgressDialog? = null
+    private var downloadProgress: android.app.ProgressDialog? = null
     // 自定义服务器参数（从 SharedPreferences 恢复）
     private var customHost: String = ""
     private var customPort: Int = 22
@@ -1000,9 +1000,8 @@ class MainActivity : ComponentActivity() {
                     output.write(buf, 0, len)
                     downloaded += len
                     val progress = if (total > 0) ((downloaded * 100 / total).toInt()) else 0
-                    val p = progress
                     handler.post {
-                        downloadProgress?.progress = p
+                        downloadProgress?.setProgress(progress)
                     }
                 }
                 output.close()
