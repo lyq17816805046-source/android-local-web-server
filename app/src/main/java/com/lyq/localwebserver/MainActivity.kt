@@ -61,6 +61,11 @@ class MainActivity : ComponentActivity() {
     private lateinit var switchTunnel: com.google.android.material.switchmaterial.SwitchMaterial
     private lateinit var tunnelStatus: TextView
     private lateinit var tunnelUrl: TextView
+    private lateinit var btnProvider1: com.google.android.material.button.MaterialButton
+    private lateinit var btnProvider2: com.google.android.material.button.MaterialButton
+    private lateinit var btnProvider3: com.google.android.material.button.MaterialButton
+    private lateinit var btnTestConnection: com.google.android.material.button.MaterialButton
+    private var selectedProvider = TunnelService.PROVIDERS[0]
 
     private val tunnelReceiver = object : BroadcastReceiver() {
         override fun onReceive(c: Context?, i: Intent?) {
@@ -96,6 +101,10 @@ class MainActivity : ComponentActivity() {
             switchTunnel = findViewById(R.id.switchTunnel)
             tunnelStatus = findViewById(R.id.tunnelStatus)
             tunnelUrl = findViewById(R.id.tunnelUrl)
+            btnProvider1 = findViewById(R.id.btnProvider1)
+            btnProvider2 = findViewById(R.id.btnProvider2)
+            btnProvider3 = findViewById(R.id.btnProvider3)
+            btnTestConnection = findViewById(R.id.btnTestConnection)
 
             registerReceiver(receiver, IntentFilter(WebServerService.ACTION_LOG), RECEIVER_NOT_EXPORTED)
             registerReceiver(tunnelReceiver, IntentFilter(TunnelService.ACTION_TUNNEL), RECEIVER_NOT_EXPORTED)
@@ -110,12 +119,18 @@ class MainActivity : ComponentActivity() {
                         Snackbar.make(root, "请先启动 HTTP 服务", Snackbar.LENGTH_SHORT).show()
                         switchTunnel.isChecked = false
                     } else {
-                        startTunnel()
+                        showTunnelWarningIfFirst()
                     }
                 } else {
                     stopTunnel()
                 }
             }
+
+            btnProvider1.setOnClickListener { selectProvider(TunnelService.PROVIDERS[0]) }
+            btnProvider2.setOnClickListener { selectProvider(TunnelService.PROVIDERS[1]) }
+            btnProvider3.setOnClickListener { selectProvider(TunnelService.PROVIDERS[2]) }
+
+            btnTestConnection.setOnClickListener { testProviderConnection() }
 
             findViewById<com.google.android.material.button.MaterialButton>(R.id.btnUpload).setOnClickListener { pickFiles() }
             findViewById<com.google.android.material.button.MaterialButton>(R.id.btnImportFolder).setOnClickListener { pickFolder() }
@@ -132,6 +147,7 @@ class MainActivity : ComponentActivity() {
 
             updateUI(false)
             refreshFileList()
+            updateProviderButtons()
             handleIncomingIntent(intent)
         } catch (e: Exception) {
             Toast.makeText(this, "初始化失败: ${e.message}", Toast.LENGTH_LONG).show()
@@ -209,8 +225,10 @@ class MainActivity : ComponentActivity() {
         val p = port.text.toString().toIntOrNull() ?: 8080
         tunnelUrl.visibility = View.GONE
         tunnelUrl.text = ""
-        tunnelStatus.text = "正在连接免费公网隧道..."
-        ContextCompat.startForegroundService(this, Intent(this, TunnelService::class.java).putExtra("port", p))
+        tunnelStatus.text = "正在连接 ${selectedProvider.label} ..."
+        ContextCompat.startForegroundService(this, Intent(this, TunnelService::class.java)
+            .putExtra("port", p)
+            .putExtra("provider", selectedProvider.key))
     }
 
     private fun stopTunnel() {
@@ -220,10 +238,88 @@ class MainActivity : ComponentActivity() {
         tunnelUrl.text = ""
     }
 
+    // 首次开启公网模式时显示 5 秒警告
+    private fun showTunnelWarningIfFirst() {
+        val prefs = getSharedPreferences("settings", MODE_PRIVATE)
+        val warned = prefs.getBoolean("tunnel_warned", false)
+        if (warned) {
+            startTunnel()
+            return
+        }
+        val dialog = MaterialAlertDialogBuilder(this)
+            .setTitle("⚠️ 公网访问提醒")
+            .setMessage(
+                "开启公网隧道后，你的站点将暴露到互联网，任何获得该公网地址的人都能访问。\n\n" +
+                "请注意：\n" +
+                "• 不要托管敏感、隐私内容\n" +
+                "• 免费隧道服务可能不稳定，公网地址会变化\n" +
+                "• 关闭开关即可立即停止公网访问\n\n" +
+                "是否继续开启？"
+            )
+            .setPositiveButton("继续开启") { _, _ ->
+                prefs.edit().putBoolean("tunnel_warned", true).apply()
+                startTunnel()
+            }
+            .setNegativeButton("取消") { _, _ ->
+                switchTunnel.isChecked = false
+            }
+            .show()
+    }
+
+    // 选择隧道服务商（仅视觉高亮；切换关状态就生效）
+    private fun selectProvider(p: TunnelService.Provider) {
+        selectedProvider = p
+        updateProviderButtons()
+        if (switchTunnel.isChecked) {
+            // 若正在运行，切服务商需重启隧道
+            stopTunnel()
+            handler.postDelayed({ startTunnel() }, 500)
+        }
+    }
+
+    private fun updateProviderButtons() {
+        val arr = arrayOf(btnProvider1, btnProvider2, btnProvider3)
+        TunnelService.PROVIDERS.forEachIndexed { i, p ->
+            val selected = (p.key == selectedProvider.key)
+            arr[i].isChecked = selected
+            if (selected) {
+                arr[i].setStrokeColorResource(android.R.color.holo_blue_light)
+                arr[i].setStrokeWidth(3)
+            } else {
+                arr[i].setStrokeColorResource(android.R.color.darker_gray)
+                arr[i].setStrokeWidth(1)
+            }
+        }
+    }
+
+    // 测试当前服务商连接（简单 TCP socket 检测 22 端口）
+    private fun testProviderConnection() {
+        thread(name = "test-conn") {
+            val p = selectedProvider
+            val ok = try {
+                val socket = java.net.Socket()
+                socket.connect(java.net.InetSocketAddress(p.host, p.port), 8000)
+                socket.close()
+                true
+            } catch (e: Exception) {
+                false
+            }
+            handler.post {
+                if (ok) {
+                    Snackbar.make(root, "✅ ${p.label} 连接正常", Snackbar.LENGTH_SHORT).show()
+                    tunnelStatus.text = "✅ ${p.label} 测试连接成功"
+                } else {
+                    Snackbar.make(root, "❌ ${p.label} 无法连接", Snackbar.LENGTH_LONG).show()
+                    tunnelStatus.text = "❌ ${p.label} 连接失败，请换一个服务商"
+                }
+            }
+        }
+    }
+
     private fun updateUI(on: Boolean) {
         statusDot.setImageResource(if (on) R.drawable.dot_on else R.drawable.dot_off)
         status.text = if (on) "服务运行中" else "服务已停止"
-        status.setTextColor(if (on) 0xFF4CAF50.toInt() else 0xFF888888.toInt())
+        status.setTextColor(if (on) ContextCompat.getColor(this, R.color.success) else ContextCompat.getColor(this, R.color.text_secondary))
         val site = WebServerService.currentSite.ifEmpty { "default" }
         address.text = if (on) "http://${WebServerService.localIp()}:${port.text}/  |  $site" else "http://—:${port.text}"
         switchServer.isChecked = on
@@ -425,7 +521,7 @@ class MainActivity : ComponentActivity() {
             val files = dir.listFiles()
             if (files == null || files.isEmpty()) {
                 fileList.addView(TextView(this).apply {
-                    text = "（空目录，请导入文件）"; textSize = 12f; setTextColor(0xFFAAAAAA.toInt()); setPadding(8, 12, 8, 0)
+                    text = "（空目录，请导入文件）"; textSize = 12f; setTextColor(ContextCompat.getColor(this@MainActivity, R.color.text_faint)); setPadding(8, 12, 8, 0)
                 })
                 return
             }
@@ -434,11 +530,11 @@ class MainActivity : ComponentActivity() {
                     orientation = LinearLayout.HORIZONTAL; setPadding(8, 10, 8, 10); gravity = android.view.Gravity.CENTER_VERTICAL
                 }
                 row.addView(TextView(this).apply {
-                    text = "${if (f.isDirectory) "📁 " else "📄 "}${f.name}"; textSize = 13f; setTextColor(0xFF333333.toInt())
+                    text = "${if (f.isDirectory) "📁 " else "📄 "}${f.name}"; textSize = 13f; setTextColor(ContextCompat.getColor(this@MainActivity, R.color.text_file))
                     layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
                 })
                 row.addView(TextView(this).apply {
-                    text = "✕"; textSize = 16f; setTextColor(0xFFCC4444.toInt()); setPadding(16, 4, 4, 4)
+                    text = "✕"; textSize = 16f; setTextColor(ContextCompat.getColor(this@MainActivity, R.color.danger)); setPadding(16, 4, 4, 4)
                     setOnClickListener {
                         try { f.deleteRecursively() } catch (_: Exception) {}
                         refreshFileList(); Snackbar.make(root, "已删除: ${f.name}", Snackbar.LENGTH_SHORT).show()
