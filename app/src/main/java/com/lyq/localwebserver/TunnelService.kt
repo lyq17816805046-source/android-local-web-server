@@ -16,10 +16,7 @@ import kotlin.concurrent.thread
 
 /**
  * 公网隧道服务：通过免费 SSH 反向隧道将本地 HTTP 服务映射到公网。
- * 支持多个服务商：
- *  - localhost.run   (默认，80 端口)
- *  - serveo.net      (80 端口)
- *  - openport.io     (动态端口)
+ * 仅保留仍在运行的服务商：localhost.run
  */
 // 隧道服务商定义（顶层，供 MainActivity 引用）
 data class Provider(val key: String, val label: String, val host: String, val port: Int, val remotePort: Int)
@@ -34,9 +31,7 @@ class TunnelService : Service() {
         var publicUrl: String? = null
 
         val PROVIDERS = listOf(
-            Provider("localhost.run", "localhost.run", "localhost.run", 22, 80),
-            Provider("serveo.net", "serveo.net", "serveo.net", 22, 80),
-            Provider("openport.io", "openport.io", "openport.io", 22, 8080)
+            Provider("localhost.run", "localhost.run", "localhost.run", 22, 80)
         )
 
         fun providerByKey(key: String): Provider = PROVIDERS.firstOrNull { it.key == key } ?: PROVIDERS[0]
@@ -120,12 +115,7 @@ class TunnelService : Service() {
     }
 
     private fun extractUrl(line: String, providerKey: String): String? {
-        val pattern = when (providerKey) {
-            "serveo.net" -> Regex("https?://[a-zA-Z0-9.-]+\\.serveo\\.net")
-            "openport.io" -> Regex("https?://[a-zA-Z0-9.-]+\\.openport\\.io")
-            else -> Regex("https?://[a-zA-Z0-9.-]+\\.(lhr\\.life|localhost\\.run)")
-        }
-        return pattern.find(line)?.value
+        return Regex("https?://[a-zA-Z0-9.-]+\\.(lhr\\.life|localhost\\.run)").find(line)?.value
     }
 
     private fun sendStatus(s: String) {
