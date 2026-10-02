@@ -15,9 +15,7 @@
             android:id="@+id/toolbar"
             android:layout_width="match_parent"
             android:layout_height="?attr/actionBarSize"
-            app:title="本地网页托管"
-            app:titleTextColor="@android:color/white"
-             />
+            app:title="本地网页托管" />
 
     </com.google.android.material.appbar.AppBarLayout>
 
@@ -41,7 +39,7 @@
                 app:cardCornerRadius="16dp"
                 app:cardElevation="2dp"
                 app:strokeWidth="1dp"
-                app:strokeColor="#E0E0E0"
+                app:strokeColor="@color/stroke"
                 android:layout_marginBottom="12dp">
 
                 <LinearLayout
@@ -50,7 +48,6 @@
                     android:orientation="vertical"
                     android:padding="20dp">
 
-                    <!-- 状态行 -->
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
@@ -71,7 +68,7 @@
                             android:layout_weight="1"
                             android:text="服务已停止"
                             android:textSize="16sp"
-                            android:textColor="#666666"
+                            android:textColor="@color/text_secondary"
                             android:layout_marginStart="10dp" />
 
                         <com.google.android.material.switchmaterial.SwitchMaterial
@@ -81,14 +78,13 @@
 
                     </LinearLayout>
 
-                    <!-- 地址 -->
                     <TextView
                         android:id="@+id/address"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:text="http://—:8080"
                         android:textSize="14sp"
-                        android:textColor="#1565C0"
+                        android:textColor="@color/accent"
                         android:fontFamily="monospace"
                         android:textIsSelectable="true"
                         android:padding="12dp"
@@ -96,7 +92,6 @@
                         android:background="@drawable/bg_address"
                         android:gravity="center" />
 
-                    <!-- 端口输入 -->
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
@@ -111,7 +106,7 @@
                             android:layout_height="wrap_content"
                             android:text="端口"
                             android:textSize="14sp"
-                            android:textColor="#555555" />
+                            android:textColor="@color/text_secondary" />
 
                         <EditText
                             android:id="@+id/port"
@@ -120,7 +115,7 @@
                             android:inputType="number"
                             android:text="8080"
                             android:textSize="14sp"
-                            android:textColor="#1A1C1E"
+                            android:textColor="@color/text_primary"
                             android:background="@null"
                             android:gravity="center"
                             android:layout_marginStart="8dp" />
@@ -130,7 +125,6 @@
                             android:layout_height="0dp"
                             android:layout_weight="1" />
 
-                        <!-- 站点切换按钮 -->
                         <com.google.android.material.button.MaterialButton
                             android:id="@+id/btnSites"
                             style="@style/Widget.Material3.Button.TextButton"
@@ -152,7 +146,7 @@
                 app:cardCornerRadius="16dp"
                 app:cardElevation="2dp"
                 app:strokeWidth="1dp"
-                app:strokeColor="#E0E0E0"
+                app:strokeColor="@color/stroke"
                 android:layout_marginBottom="12dp">
 
                 <LinearLayout
@@ -174,12 +168,59 @@
                             android:text="公网访问（免费隧道）"
                             android:textSize="16sp"
                             android:textStyle="bold"
-                            android:textColor="#1A1C1E" />
+                            android:textColor="@color/text_primary" />
 
                         <com.google.android.material.switchmaterial.SwitchMaterial
                             android:id="@+id/switchTunnel"
                             android:layout_width="wrap_content"
                             android:layout_height="48dp" />
+
+                    </LinearLayout>
+
+                    <!-- 隧道服务商选择 -->
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="隧道服务商"
+                        android:textSize="13sp"
+                        android:textColor="@color/text_dim"
+                        android:layout_marginTop="8dp" />
+
+                    <LinearLayout
+                        android:id="@+id/providerGroup"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:layout_marginTop="6dp">
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btnProvider1"
+                            style="@style/Widget.Material3.Button.OutlinedButton"
+                            android:layout_width="0dp"
+                            android:layout_height="44dp"
+                            android:layout_weight="1"
+                            android:text="localhost.run"
+                            android:textSize="11sp" />
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btnProvider2"
+                            style="@style/Widget.Material3.Button.OutlinedButton"
+                            android:layout_width="0dp"
+                            android:layout_height="44dp"
+                            android:layout_weight="1"
+                            android:layout_marginStart="6dp"
+                            android:text="serveo.net"
+                            android:textSize="11sp" />
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btnProvider3"
+                            style="@style/Widget.Material3.Button.OutlinedButton"
+                            android:layout_width="0dp"
+                            android:layout_height="44dp"
+                            android:layout_weight="1"
+                            android:layout_marginStart="6dp"
+                            android:text="openport.io"
+                            android:textSize="11sp" />
 
                     </LinearLayout>
 
@@ -189,8 +230,8 @@
                         android:layout_height="wrap_content"
                         android:text="关闭。开启后可通过外网访问你的站点"
                         android:textSize="13sp"
-                        android:textColor="#888888"
-                        android:layout_marginTop="4dp" />
+                        android:textColor="@color/text_dim"
+                        android:layout_marginTop="8dp" />
 
                     <TextView
                         android:id="@+id/tunnelUrl"
@@ -198,13 +239,22 @@
                         android:layout_height="wrap_content"
                         android:text=""
                         android:textSize="14sp"
-                        android:textColor="#1565C0"
+                        android:textColor="@color/accent"
                         android:fontFamily="monospace"
                         android:textIsSelectable="true"
                         android:padding="10dp"
                         android:layout_marginTop="8dp"
                         android:background="@drawable/bg_address"
                         android:visibility="gone" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnTestConnection"
+                        style="@style/Widget.Material3.Button.TonalButton"
+                        android:layout_width="match_parent"
+                        android:layout_height="44dp"
+                        android:layout_marginTop="8dp"
+                        android:text="测试连接"
+                        android:textSize="13sp" />
 
                 </LinearLayout>
 
@@ -217,7 +267,7 @@
                 app:cardCornerRadius="16dp"
                 app:cardElevation="2dp"
                 app:strokeWidth="1dp"
-                app:strokeColor="#E0E0E0"
+                app:strokeColor="@color/stroke"
                 android:layout_marginBottom="12dp">
 
                 <LinearLayout
@@ -239,7 +289,7 @@
                             android:text="文件管理"
                             android:textSize="16sp"
                             android:textStyle="bold"
-                            android:textColor="#1A1C1E" />
+                            android:textColor="@color/text_primary" />
 
                         <TextView
                             android:id="@+id/currentSite"
@@ -247,7 +297,7 @@
                             android:layout_height="wrap_content"
                             android:text="站点: default"
                             android:textSize="12sp"
-                            android:textColor="#888888" />
+                            android:textColor="@color/text_dim" />
 
                     </LinearLayout>
 
@@ -313,14 +363,12 @@
 
                     </LinearLayout>
 
-                    <!-- 文件列表 -->
                     <TextView
-                        android:id="@+id/fileListTitle"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:text="当前站点文件:"
                         android:textSize="13sp"
-                        android:textColor="#888888"
+                        android:textColor="@color/text_dim"
                         android:layout_marginTop="12dp" />
 
                     <LinearLayout
@@ -341,7 +389,7 @@
                 app:cardCornerRadius="16dp"
                 app:cardElevation="2dp"
                 app:strokeWidth="1dp"
-                app:strokeColor="#E0E0E0">
+                app:strokeColor="@color/stroke">
 
                 <LinearLayout
                     android:layout_width="match_parent"
@@ -362,7 +410,7 @@
                             android:text="访问日志"
                             android:textSize="16sp"
                             android:textStyle="bold"
-                            android:textColor="#1A1C1E" />
+                            android:textColor="@color/text_primary" />
 
                         <com.google.android.material.button.MaterialButton
                             android:id="@+id/btnClearLog"
@@ -381,7 +429,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="250dp"
                         android:layout_marginTop="8dp"
-                        android:background="#F7F8FA"
+                        android:background="@color/bg_log"
                         android:padding="4dp">
 
                         <TextView
@@ -390,7 +438,7 @@
                             android:layout_height="wrap_content"
                             android:padding="10dp"
                             android:textSize="12sp"
-                            android:textColor="#444444"
+                            android:textColor="@color/log_text"
                             android:fontFamily="monospace"
                             android:textIsSelectable="true"
                             android:text="等待启动..." />
