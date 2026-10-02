@@ -329,13 +329,23 @@ class MainActivity : ComponentActivity() {
         statsView.text = "今日访问 $today · 累计访问 $total"
     }
 
+    // 获取当前可分享的地址：优先公网地址，其次局域网
+    private fun currentShareUrl(): String? {
+        val publicUrl = TunnelService.publicUrl
+        if (publicUrl != null && publicUrl.isNotEmpty()) return publicUrl
+        if (WebServerService.running) {
+            return "http://${WebServerService.localIp()}:${port.text}/"
+        }
+        return null
+    }
+
     // 显示二维码
     private fun showQRCode() {
-        if (!WebServerService.running) {
-            Snackbar.make(root, "请先启动 HTTP 服务", Snackbar.LENGTH_SHORT).show()
+        val url = currentShareUrl()
+        if (url == null) {
+            Snackbar.make(root, "请先启动 HTTP 服务或开启公网隧道", Snackbar.LENGTH_SHORT).show()
             return
         }
-        val url = "http://${WebServerService.localIp()}:${port.text}/"
         val qrBitmap = QRCodeGenerator.generate(url) ?: run {
             Snackbar.make(root, "二维码生成失败", Snackbar.LENGTH_SHORT).show()
             return
@@ -354,11 +364,11 @@ class MainActivity : ComponentActivity() {
 
     // 复制地址到剪贴板
     private fun copyAddress() {
-        if (!WebServerService.running) {
-            Snackbar.make(root, "请先启动 HTTP 服务", Snackbar.LENGTH_SHORT).show()
+        val url = currentShareUrl()
+        if (url == null) {
+            Snackbar.make(root, "请先启动 HTTP 服务或开启公网隧道", Snackbar.LENGTH_SHORT).show()
             return
         }
-        val url = "http://${WebServerService.localIp()}:${port.text}/"
         val cm = getSystemService(CLIPBOARD_SERVICE) as android.content.ClipboardManager
         cm.setPrimaryClip(android.content.ClipData.newPlainText("url", url))
         Snackbar.make(root, "已复制: $url", Snackbar.LENGTH_SHORT).show()
