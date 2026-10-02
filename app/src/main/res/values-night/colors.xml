@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 语义化颜色（深色模式） -->
+    <color name="text_primary">#E5E7EB</color>
+    <color name="text_secondary">#B0B7C3</color>
+    <color name="text_dim">#9CA3AF</color>
+    <color name="text_faint">#6B7280</color>
+    <color name="text_file">#D1D5DB</color>
+
+    <color name="stroke">#333A45</color>
+    <color name="bg_address">#1E2937</color>
+    <color name="bg_input">#1F2430</color>
+    <color name="bg_log">#161B24</color>
+    <color name="log_text">#C0C4CC</color>
+    <color name="bg_dot_off">#4B5563</color>
+
+    <color name="success">#66BB6A</color>
+    <color name="danger">#EF5350</color>
+    <color name="accent">#5B8DEF</color>
+</resources>
