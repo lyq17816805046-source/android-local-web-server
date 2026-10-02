@@ -65,7 +65,19 @@ class MainActivity : ComponentActivity() {
     private lateinit var btnProvider2: com.google.android.material.button.MaterialButton
     private lateinit var btnProvider3: com.google.android.material.button.MaterialButton
     private lateinit var btnTestConnection: com.google.android.material.button.MaterialButton
+    private lateinit var statsView: TextView
     private var selectedProvider: Provider = TunnelService.PROVIDERS[0]
+    private var accessPassword: String? = null
+
+    private val statsReceiver = object : BroadcastReceiver() {
+        override fun onReceive(c: Context?, i: Intent?) {
+            if (i?.action == WebServerService.ACTION_STATS) {
+                val total = i.getLongExtra("total", 0L)
+                val today = i.getLongExtra("today", 0L)
+                handler.post { updateStats(total, today) }
+            }
+        }
+    }
 
     private val tunnelReceiver = object : BroadcastReceiver() {
         override fun onReceive(c: Context?, i: Intent?) {
@@ -105,9 +117,14 @@ class MainActivity : ComponentActivity() {
             btnProvider2 = findViewById(R.id.btnProvider2)
             btnProvider3 = findViewById(R.id.btnProvider3)
             btnTestConnection = findViewById(R.id.btnTestConnection)
+            statsView = findViewById(R.id.statsView)
 
             registerReceiver(receiver, IntentFilter(WebServerService.ACTION_LOG), RECEIVER_NOT_EXPORTED)
             registerReceiver(tunnelReceiver, IntentFilter(TunnelService.ACTION_TUNNEL), RECEIVER_NOT_EXPORTED)
+            registerReceiver(statsReceiver, IntentFilter(WebServerService.ACTION_STATS), RECEIVER_NOT_EXPORTED)
+
+            // 读取已保存的访问密码
+            accessPassword = getSharedPreferences("settings", MODE_PRIVATE).getString("access_password", null)
 
             switchServer.setOnCheckedChangeListener { _, checked ->
                 if (checked) startServer() else stopServer()
@@ -132,6 +149,10 @@ class MainActivity : ComponentActivity() {
 
             btnTestConnection.setOnClickListener { testProviderConnection() }
 
+            findViewById<com.google.android.material.button.MaterialButton>(R.id.btnQRCode).setOnClickListener { showQRCode() }
+            findViewById<com.google.android.material.button.MaterialButton>(R.id.btnCopyAddr).setOnClickListener { copyAddress() }
+            findViewById<com.google.android.material.button.MaterialButton>(R.id.btnSetPassword).setOnClickListener { showPasswordDialog() }
+
             findViewById<com.google.android.material.button.MaterialButton>(R.id.btnUpload).setOnClickListener { pickFiles() }
             findViewById<com.google.android.material.button.MaterialButton>(R.id.btnImportFolder).setOnClickListener { pickFolder() }
             findViewById<com.google.android.material.button.MaterialButton>(R.id.btnImportZip).setOnClickListener { pickZipFile() }
@@ -148,6 +169,7 @@ class MainActivity : ComponentActivity() {
             updateUI(false)
             refreshFileList()
             updateProviderButtons()
+            refreshStatsFromPrefs()
             handleIncomingIntent(intent)
         } catch (e: Exception) {
             Toast.makeText(this, "初始化失败: ${e.message}", Toast.LENGTH_LONG).show()
@@ -200,9 +222,11 @@ class MainActivity : ComponentActivity() {
 
     private fun makeIntent(): Intent {
         val site = WebServerService.currentSite.ifEmpty { "default" }
-        return Intent(this, WebServerService::class.java)
+        val intent = Intent(this, WebServerService::class.java)
             .putExtra("port", port.text.toString().toIntOrNull() ?: 8080)
             .putExtra("site", site)
+        accessPassword?.let { intent.putExtra("password", it) }
+        return intent
     }
 
     private fun startServer() {
@@ -290,6 +314,82 @@ class MainActivity : ComponentActivity() {
                 arr[i].setStrokeWidth(1)
             }
         }
+    }
+
+    // 从 SharedPreferences 读统计刷新
+    private fun refreshStatsFromPrefs() {
+        val prefs = getSharedPreferences("stats", MODE_PRIVATE)
+        val total = prefs.getLong("total_visits", 0L)
+        val today = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.CHINA).format(java.util.Date())
+        val todayCount = prefs.getLong("day_$today", 0L)
+        updateStats(total, todayCount)
+    }
+
+    private fun updateStats(total: Long, today: Long) {
+        statsView.text = "今日访问 $today · 累计访问 $total"
+    }
+
+    // 显示二维码
+    private fun showQRCode() {
+        if (!WebServerService.running) {
+            Snackbar.make(root, "请先启动 HTTP 服务", Snackbar.LENGTH_SHORT).show()
+            return
+        }
+        val url = "http://${WebServerService.localIp()}:${port.text}/"
+        val qrBitmap = QRCodeGenerator.generate(url) ?: run {
+            Snackbar.make(root, "二维码生成失败", Snackbar.LENGTH_SHORT).show()
+            return
+        }
+        val iv = ImageView(this).apply {
+            setImageBitmap(qrBitmap)
+            setPadding(40, 40, 40, 40)
+        }
+        MaterialAlertDialogBuilder(this)
+            .setTitle("扫码访问")
+            .setMessage(url)
+            .setView(iv)
+            .setPositiveButton("关闭", null)
+            .show()
+    }
+
+    // 复制地址到剪贴板
+    private fun copyAddress() {
+        if (!WebServerService.running) {
+            Snackbar.make(root, "请先启动 HTTP 服务", Snackbar.LENGTH_SHORT).show()
+            return
+        }
+        val url = "http://${WebServerService.localIp()}:${port.text}/"
+        val cm = getSystemService(CLIPBOARD_SERVICE) as android.content.ClipboardManager
+        cm.setPrimaryClip(android.content.ClipData.newPlainText("url", url))
+        Snackbar.make(root, "已复制: $url", Snackbar.LENGTH_SHORT).show()
+    }
+
+    // 设置访问密码
+    private fun showPasswordDialog() {
+        val input = EditText(this).apply {
+            hint = "留空则关闭密码保护"
+            setPadding(32, 16, 32, 16)
+        }
+        input.setText(accessPassword ?: "")
+        MaterialAlertDialogBuilder(this)
+            .setTitle("访问密码")
+            .setMessage("设置后，访问者需要输入密码才能浏览网站（HTTP Basic 认证）")
+            .setView(input)
+            .setPositiveButton("保存") { _, _ ->
+                val pwd = input.text.toString().trim()
+                accessPassword = if (pwd.isEmpty()) null else pwd
+                getSharedPreferences("settings", MODE_PRIVATE)
+                    .edit().putString("access_password", accessPassword).apply()
+                if (WebServerService.running) {
+                    // 重启服务使密码生效
+                    stopServer()
+                    handler.postDelayed({ startServer() }, 600)
+                }
+                val tip = if (accessPassword == null) "已关闭访问密码" else "访问密码已设置"
+                Snackbar.make(root, tip, Snackbar.LENGTH_SHORT).show()
+            }
+            .setNegativeButton("取消", null)
+            .show()
     }
 
     // 测试当前服务商连接（简单 TCP socket 检测 22 端口）
@@ -610,6 +710,7 @@ class MainActivity : ComponentActivity() {
     override fun onDestroy() {
         try { unregisterReceiver(receiver) } catch (_: Exception) {}
         try { unregisterReceiver(tunnelReceiver) } catch (_: Exception) {}
+        try { unregisterReceiver(statsReceiver) } catch (_: Exception) {}
         super.onDestroy()
     }
 }
