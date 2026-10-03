@@ -10,15 +10,16 @@
     <com.google.android.material.appbar.AppBarLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:background="@color/top_bar_bg"
         android:fitsSystemWindows="true">
 
         <com.google.android.material.appbar.MaterialToolbar
             android:id="@+id/toolbar"
             android:layout_width="match_parent"
             android:layout_height="?attr/actionBarSize"
+            android:background="@color/top_bar_bg"
             app:title="本地网页托管"
-            app:menu="@menu/toolbar_menu"
-            app:navigationIconTint="?attr/colorOnSurface" />
+            app:menu="@menu/toolbar_menu" />
 
     </com.google.android.material.appbar.AppBarLayout>
 
