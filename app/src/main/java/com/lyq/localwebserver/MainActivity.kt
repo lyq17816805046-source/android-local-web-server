@@ -193,9 +193,7 @@ class MainActivity : ComponentActivity() {
             tabFiles.setOnClickListener { switchPage(1) }
             tabConsole.setOnClickListener { switchPage(2) }
 
-            // 左上角感叹号：关于；右上角齿轮：全屏设置
-            toolbar.setNavigationIcon(R.drawable.ic_info)
-            toolbar.setNavigationOnClickListener { showAboutDialog() }
+            // 右上角齿轮：全屏设置
             toolbar.setOnMenuItemClickListener { item ->
                 when (item.itemId) {
                     R.id.menu_settings -> {
@@ -212,6 +210,13 @@ class MainActivity : ComponentActivity() {
             tabConsoleIcon.setColorFilter(ContextCompat.getColor(this, R.color.text_faint))
 
             switchPage(0)
+
+            // 滚动时实时刷新底栏模糊
+            val blurScrollListener = View.OnScrollChangeListener { _, _, _, _, _ -> scheduleBlurUpdate() }
+            pageHome.setOnScrollChangeListener(blurScrollListener)
+            pageFiles.setOnScrollChangeListener(blurScrollListener)
+            pageConsole.setOnScrollChangeListener(blurScrollListener)
+            findViewById<ScrollView>(R.id.logScrollView)?.setOnScrollChangeListener(blurScrollListener)
 
             registerReceiver(receiver, IntentFilter(WebServerService.ACTION_LOG), RECEIVER_NOT_EXPORTED)
             registerReceiver(tunnelReceiver, IntentFilter(TunnelService.ACTION_TUNNEL), RECEIVER_NOT_EXPORTED)
@@ -995,6 +1000,7 @@ class MainActivity : ComponentActivity() {
 
         updateTabBackgrounds(index)
         handler.postDelayed({ applyBottomBarBlur() }, 280)
+        scheduleBlurUpdate()
     }
 
     /** Tab 选中背景：现代=胶囊，经典=方形描边 */
@@ -1052,6 +1058,20 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    /** 节流调度：滚动/切换时触发，避免高频重绘；60ms 内只刷新一次 */
+    private var blurUpdatePending = false
+    private val blurUpdateRunnable = Runnable {
+        blurUpdatePending = false
+        applyBottomBarBlur(0)
+    }
+
+    private fun scheduleBlurUpdate() {
+        if (!ThemeManager.isModern(this)) return
+        if (blurUpdatePending) return
+        blurUpdatePending = true
+        handler.postDelayed(blurUpdateRunnable, 60)
+    }
+
     /** 底栏：现代=StackBlur 高斯模糊（纯代码，不依赖 Android 12 接口）；经典=纯色 */
     private fun applyBottomBarBlur(retry: Int = 2) {
         try {
@@ -1075,13 +1095,18 @@ class MainActivity : ComponentActivity() {
                 else -> null
             }
             val src: View = visiblePage ?: container
-            val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+            // 降采样 1/4 分辨率渲染 + 小半径模糊，保证滚动时实时刷新也足够流畅
+            val scale = 4
+            val bw = (w / scale).coerceAtLeast(1)
+            val bh = (h / scale).coerceAtLeast(1)
+            val bmp = Bitmap.createBitmap(bw, bh, Bitmap.Config.ARGB_8888)
             val canvas = Canvas(bmp)
+            canvas.scale(1f / scale, 1f / scale)
             canvas.translate(0f, -(src.height - h).toFloat())
             src.draw(canvas)
             val isNight = (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
             canvas.drawColor(if (isNight) 0x66000000.toInt() else 0x40FFFFFF.toInt())
-            val blurred = StackBlur.blur(bmp, 18)
+            val blurred = StackBlur.blur(bmp, 5)
             nav.background = BitmapDrawable(resources, blurred)
         } catch (_: Exception) {}
     }
@@ -1251,6 +1276,7 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
+        try { handler.removeCallbacks(blurUpdateRunnable) } catch (_: Exception) {}
         try { downloadProgress?.dismiss() } catch (_: Exception) {}
         try { unregisterReceiver(receiver) } catch (_: Exception) {}
         try { unregisterReceiver(tunnelReceiver) } catch (_: Exception) {}
