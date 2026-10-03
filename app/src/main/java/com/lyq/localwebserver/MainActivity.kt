@@ -3,10 +3,16 @@ package com.lyq.localwebserver
 import android.Manifest
 import android.content.*
 import android.content.pm.PackageManager
+import android.content.res.Configuration
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.graphics.Canvas
+import android.graphics.drawable.BitmapDrawable
 import android.net.Uri
 import android.os.*
 import android.provider.OpenableColumns
 import android.view.View
+import android.view.ViewGroup
 import android.widget.*
 import androidx.activity.ComponentActivity
 import androidx.activity.result.contract.ActivityResultContracts
@@ -79,6 +85,10 @@ class MainActivity : ComponentActivity() {
     private lateinit var tabHomeText: TextView
     private lateinit var tabFilesText: TextView
     private lateinit var tabConsoleText: TextView
+    private lateinit var tabHomeInner: LinearLayout
+    private lateinit var tabFilesInner: LinearLayout
+    private lateinit var tabConsoleInner: LinearLayout
+    private var currentPageIndex = -1
     private lateinit var toolbar: com.google.android.material.appbar.MaterialToolbar
     private var selectedProvider: Provider = TunnelService.LOCALHOST_RUN
     private var accessPassword: String? = null
@@ -173,6 +183,9 @@ class MainActivity : ComponentActivity() {
             tabHomeText = findViewById(R.id.tabHomeText)
             tabFilesText = findViewById(R.id.tabFilesText)
             tabConsoleText = findViewById(R.id.tabConsoleText)
+            tabHomeInner = findViewById(R.id.tabHomeInner)
+            tabFilesInner = findViewById(R.id.tabFilesInner)
+            tabConsoleInner = findViewById(R.id.tabConsoleInner)
             toolbar = findViewById(R.id.toolbar)
 
             // 底部导航
@@ -180,10 +193,15 @@ class MainActivity : ComponentActivity() {
             tabFiles.setOnClickListener { switchPage(1) }
             tabConsole.setOnClickListener { switchPage(2) }
 
-            // 右上角菜单（已在布局通过 app:menu 配置）
+            // 左上角感叹号：关于；右上角齿轮：全屏设置
+            toolbar.setNavigationIcon(R.drawable.ic_info)
+            toolbar.setNavigationOnClickListener { showAboutDialog() }
             toolbar.setOnMenuItemClickListener { item ->
                 when (item.itemId) {
-                    R.id.menu_info -> { showAboutDialog(); true }
+                    R.id.menu_settings -> {
+                        startActivity(Intent(this, SettingsActivity::class.java))
+                        true
+                    }
                     else -> false
                 }
             }
@@ -922,9 +940,42 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun switchPage(index: Int) {
-        pageHome.visibility = if (index == 0) View.VISIBLE else View.GONE
-        pageFiles.visibility = if (index == 1) View.VISIBLE else View.GONE
-        pageConsole.visibility = if (index == 2) View.VISIBLE else View.GONE
+        val pages = arrayOf<View>(pageHome, pageFiles, pageConsole)
+        val density = resources.displayMetrics.density
+
+        if (currentPageIndex != index) {
+            val oldIndex = currentPageIndex
+
+            // 先把非目标、非当前的页面收起来
+            pages.forEachIndexed { i, p ->
+                if (i != index && i != oldIndex) {
+                    p.visibility = View.GONE
+                    p.alpha = 1f
+                    p.translationY = 0f
+                }
+            }
+
+            // 旧页淡出
+            if (oldIndex in 0..2) {
+                val old = pages[oldIndex]
+                old.animate().alpha(0f).setDuration(160).withEndAction {
+                    if (currentPageIndex != oldIndex) {
+                        old.visibility = View.GONE
+                    }
+                    old.alpha = 1f
+                    old.translationY = 0f
+                }.start()
+            }
+
+            // 新页淡入 + 轻微上滑
+            val newPage = pages[index]
+            newPage.visibility = View.VISIBLE
+            newPage.alpha = 0f
+            newPage.translationY = 16f * density
+            newPage.animate().alpha(1f).translationY(0f).setDuration(220).start()
+
+            currentPageIndex = index
+        }
 
         val accent = ContextCompat.getColor(this, R.color.accent)
         val faint = ContextCompat.getColor(this, R.color.text_faint)
@@ -941,6 +992,103 @@ class MainActivity : ComponentActivity() {
         tabHome.isSelected = index == 0
         tabFiles.isSelected = index == 1
         tabConsole.isSelected = index == 2
+
+        updateTabBackgrounds(index)
+        handler.postDelayed({ applyBottomBarBlur() }, 280)
+    }
+
+    /** Tab 选中背景：现代=胶囊，经典=方形描边 */
+    private fun updateTabBackgrounds(selected: Int) {
+        val bgRes = if (ThemeManager.isModern(this)) R.drawable.bg_tab_pill else R.drawable.bg_tab_square
+        tabHomeInner.background = if (selected == 0) ContextCompat.getDrawable(this, bgRes) else null
+        tabFilesInner.background = if (selected == 1) ContextCompat.getDrawable(this, bgRes) else null
+        tabConsoleInner.background = if (selected == 2) ContextCompat.getDrawable(this, bgRes) else null
+    }
+
+    /** 应用主题：背景、卡片颜色与圆角、底栏与 Tab */
+    private fun applyTheme() {
+        try {
+            val rootLayout = findViewById<androidx.coordinatorlayout.widget.CoordinatorLayout>(R.id.rootLayout)
+
+            // 背景：自定义图片 > 自定义颜色 > 系统默认
+            if (ThemeManager.hasCustomBgImage(this)) {
+                try {
+                    val bmp = BitmapFactory.decodeFile(ThemeManager.getCustomBgFile(this).absolutePath)
+                    if (bmp != null) {
+                        rootLayout.background = BitmapDrawable(resources, bmp)
+                    }
+                } catch (_: Exception) {
+                    rootLayout.background = null
+                }
+            } else {
+                val bgColor = ThemeManager.getBgColor(this)
+                if (bgColor != null) rootLayout.setBackgroundColor(bgColor) else rootLayout.background = null
+            }
+
+            // 卡片
+            val modern = ThemeManager.isModern(this)
+            val cardColor = ThemeManager.getCardColor(this)
+            applyCardsTo(rootLayout, modern, cardColor)
+
+            // 底栏 + Tab
+            applyBottomBarBlur()
+            updateTabBackgrounds(currentPageIndex.coerceAtLeast(0))
+        } catch (_: Exception) {}
+    }
+
+    /** 递归应用卡片颜色与圆角 */
+    private fun applyCardsTo(v: View, modern: Boolean, cardColor: Int?) {
+        if (v is com.google.android.material.card.MaterialCardView) {
+            val density = resources.displayMetrics.density
+            try { v.radius = if (modern) 16f * density else 0f } catch (_: Exception) {}
+            val isNight = (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
+            val def = if (isNight) 0xFF14181F.toInt() else 0xFFFDFCFF.toInt()
+            try { v.setCardBackgroundColor(cardColor ?: def) } catch (_: Exception) {}
+        }
+        if (v is ViewGroup) {
+            for (i in 0 until v.childCount) {
+                applyCardsTo(v.getChildAt(i), modern, cardColor)
+            }
+        }
+    }
+
+    /** 底栏：现代=StackBlur 高斯模糊（纯代码，不依赖 Android 12 接口）；经典=纯色 */
+    private fun applyBottomBarBlur(retry: Int = 2) {
+        try {
+            val nav = findViewById<LinearLayout>(R.id.bottomNav) ?: return
+            if (!ThemeManager.isModern(this)) {
+                nav.background = ContextCompat.getDrawable(this, R.drawable.bg_bottom_classic)
+                return
+            }
+            val container = findViewById<FrameLayout>(R.id.pageContainer) ?: return
+            val w = container.width
+            val h = nav.height
+            if (w <= 0 || h <= 0 || container.height <= 0) {
+                if (retry > 0) handler.postDelayed({ applyBottomBarBlur(retry - 1) }, 400)
+                return
+            }
+            // 只绘制当前页面（避免把底栏自身画进模糊源）
+            val visiblePage: View? = when (currentPageIndex) {
+                0 -> pageHome
+                1 -> pageFiles
+                2 -> pageConsole
+                else -> null
+            }
+            val src: View = visiblePage ?: container
+            val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+            val canvas = Canvas(bmp)
+            canvas.translate(0f, -(src.height - h).toFloat())
+            src.draw(canvas)
+            val isNight = (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
+            canvas.drawColor(if (isNight) 0x66000000.toInt() else 0x40FFFFFF.toInt())
+            val blurred = StackBlur.blur(bmp, 18)
+            nav.background = BitmapDrawable(resources, blurred)
+        } catch (_: Exception) {}
+    }
+
+    override fun onResume() {
+        super.onResume()
+        handler.postDelayed({ applyTheme() }, 300)
     }
 
     private fun showAboutDialog() {
