@@ -2,6 +2,7 @@
 <androidx.coordinatorlayout.widget.CoordinatorLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/rootLayout"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:fitsSystemWindows="true">
@@ -16,7 +17,8 @@
             android:layout_width="match_parent"
             android:layout_height="?attr/actionBarSize"
             app:title="本地网页托管"
-            app:menu="@menu/toolbar_menu" />
+            app:menu="@menu/toolbar_menu"
+            app:navigationIconTint="?attr/colorOnSurface" />
 
     </com.google.android.material.appbar.AppBarLayout>
 
@@ -28,6 +30,7 @@
 
         <!-- 页面容器 -->
         <FrameLayout
+            android:id="@+id/pageContainer"
             android:layout_width="match_parent"
             android:layout_height="0dp"
             android:layout_weight="1">
@@ -37,7 +40,8 @@
                 android:id="@+id/pageHome"
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
-                android:clipToPadding="false">
+                android:clipToPadding="false"
+                android:paddingBottom="76dp">
 
                 <LinearLayout
                     android:layout_width="match_parent"
@@ -214,7 +218,8 @@
                         app:cardCornerRadius="16dp"
                         app:cardElevation="2dp"
                         app:strokeWidth="1dp"
-                        app:strokeColor="@color/stroke">
+                        app:strokeColor="@color/stroke"
+                        android:layout_marginBottom="12dp">
 
                         <LinearLayout
                             android:layout_width="match_parent"
@@ -329,7 +334,8 @@
                         app:cardCornerRadius="16dp"
                         app:cardElevation="2dp"
                         app:strokeWidth="1dp"
-                        app:strokeColor="@color/stroke">
+                        app:strokeColor="@color/stroke"
+                        android:layout_marginBottom="12dp">
 
                         <LinearLayout
                             android:layout_width="match_parent"
@@ -441,6 +447,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
                 android:clipToPadding="false"
+                android:paddingBottom="76dp"
                 android:visibility="gone">
 
                 <LinearLayout
@@ -579,6 +586,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
                 android:clipToPadding="false"
+                android:paddingBottom="76dp"
                 android:visibility="gone">
 
                 <LinearLayout
@@ -658,13 +666,12 @@
 
             </androidx.core.widget.NestedScrollView>
 
-        </FrameLayout>
-
-        <!-- 底部玻璃导航栏 -->
+        <!-- 底部玻璃导航栏（悬浮于内容之上） -->
         <LinearLayout
             android:id="@+id/bottomNav"
             android:layout_width="match_parent"
-            android:layout_height="62dp"
+            android:layout_height="64dp"
+            android:layout_gravity="bottom"
             android:orientation="horizontal"
             android:background="@drawable/bg_bottom_bar"
             android:elevation="8dp">
@@ -678,6 +685,17 @@
                 android:gravity="center"
                 android:clickable="true"
                 android:focusable="true">
+
+                <LinearLayout
+                    android:id="@+id/tabHomeInner"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:gravity="center"
+                    android:paddingStart="18dp"
+                    android:paddingEnd="18dp"
+                    android:paddingTop="6dp"
+                    android:paddingBottom="6dp">
 
                 <ImageView
                     android:id="@+id/tabHomeIcon"
@@ -695,6 +713,8 @@
                     android:textColor="@color/text_dim"
                     android:layout_marginTop="2dp" />
 
+                </LinearLayout>
+
             </LinearLayout>
 
             <LinearLayout
@@ -706,6 +726,17 @@
                 android:gravity="center"
                 android:clickable="true"
                 android:focusable="true">
+
+                <LinearLayout
+                    android:id="@+id/tabFilesInner"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:gravity="center"
+                    android:paddingStart="18dp"
+                    android:paddingEnd="18dp"
+                    android:paddingTop="6dp"
+                    android:paddingBottom="6dp">
 
                 <ImageView
                     android:id="@+id/tabFilesIcon"
@@ -723,6 +754,8 @@
                     android:textColor="@color/text_dim"
                     android:layout_marginTop="2dp" />
 
+                </LinearLayout>
+
             </LinearLayout>
 
             <LinearLayout
@@ -734,6 +767,17 @@
                 android:gravity="center"
                 android:clickable="true"
                 android:focusable="true">
+
+                <LinearLayout
+                    android:id="@+id/tabConsoleInner"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:gravity="center"
+                    android:paddingStart="18dp"
+                    android:paddingEnd="18dp"
+                    android:paddingTop="6dp"
+                    android:paddingBottom="6dp">
 
                 <ImageView
                     android:id="@+id/tabConsoleIcon"
@@ -751,9 +795,13 @@
                     android:textColor="@color/text_dim"
                     android:layout_marginTop="2dp" />
 
+                </LinearLayout>
+
             </LinearLayout>
 
         </LinearLayout>
+
+        </FrameLayout>
 
     </LinearLayout>
 
