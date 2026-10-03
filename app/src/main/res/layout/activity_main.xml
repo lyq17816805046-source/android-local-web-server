@@ -322,6 +322,115 @@
 
                     </com.google.android.material.card.MaterialCardView>
 
+                    <!-- 域名绑定（DDNS）卡片 -->
+                    <com.google.android.material.card.MaterialCardView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        app:cardCornerRadius="16dp"
+                        app:cardElevation="2dp"
+                        app:strokeWidth="1dp"
+                        app:strokeColor="@color/stroke">
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="vertical"
+                            android:padding="20dp">
+
+                            <LinearLayout
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:orientation="horizontal"
+                                android:gravity="center_vertical">
+
+                                <TextView
+                                    android:layout_width="0dp"
+                                    android:layout_height="wrap_content"
+                                    android:layout_weight="1"
+                                    android:text="域名绑定（DDNS）"
+                                    android:textSize="16sp"
+                                    android:textStyle="bold"
+                                    android:textColor="@color/text_primary" />
+
+                                <com.google.android.material.switchmaterial.SwitchMaterial
+                                    android:id="@+id/switchDdns"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="48dp" />
+
+                            </LinearLayout>
+
+                            <TextView
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:text="服务商：腾讯 DNSPod　公网 IP 变化时自动更新解析"
+                                android:textSize="13sp"
+                                android:textColor="@color/text_dim"
+                                android:layout_marginTop="4dp" />
+
+                            <EditText
+                                android:id="@+id/etDdnsDomain"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:hint="域名（如 example.eu.org）"
+                                android:inputType="textUri"
+                                android:singleLine="true"
+                                android:textColor="@color/text_primary"
+                                android:textColorHint="@color/text_faint"
+                                android:layout_marginTop="8dp" />
+
+                            <EditText
+                                android:id="@+id/etDdnsToken"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:hint="DNSPod API Token（ID,Token）"
+                                android:inputType="text"
+                                android:singleLine="true"
+                                android:textColor="@color/text_primary"
+                                android:textColorHint="@color/text_faint" />
+
+                            <EditText
+                                android:id="@+id/etDdnsSub"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:hint="主机记录（@ 或 www，留空为 @）"
+                                android:inputType="text"
+                                android:singleLine="true"
+                                android:textColor="@color/text_primary"
+                                android:textColorHint="@color/text_faint" />
+
+                            <com.google.android.material.button.MaterialButton
+                                android:id="@+id/btnDdnsSync"
+                                style="@style/Widget.Material3.Button.TonalButton"
+                                android:layout_width="match_parent"
+                                android:layout_height="44dp"
+                                android:layout_marginTop="8dp"
+                                android:text="保存并立即同步"
+                                android:textSize="13sp" />
+
+                            <TextView
+                                android:id="@+id/tvDdnsStatus"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:text="未启用"
+                                android:textSize="12sp"
+                                android:textColor="@color/text_dim"
+                                android:fontFamily="monospace"
+                                android:padding="10dp"
+                                android:layout_marginTop="8dp"
+                                android:background="@drawable/bg_address" />
+
+                            <TextView
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:text="说明：仅为 A（IPv4）/ AAAA（IPv6）记录自动更新；Token 在 DNSPod 控制台「密钥管理」生成"
+                                android:textSize="11sp"
+                                android:textColor="@color/text_faint"
+                                android:layout_marginTop="6dp" />
+
+                        </LinearLayout>
+
+                    </com.google.android.material.card.MaterialCardView>
+
                 </LinearLayout>
 
             </androidx.core.widget.NestedScrollView>
