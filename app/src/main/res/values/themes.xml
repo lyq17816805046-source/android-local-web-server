@@ -8,9 +8,10 @@
         <item name="colorOnSecondary">#FFFFFF</item>
         <item name="colorSurface">#FDFCFF</item>
         <item name="colorOnSurface">#1A1C1E</item>
-        <item name="android:statusBarColor">#1565C0</item>
-        <item name="android:navigationBarColor">#FDFCFF</item>
-        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:statusBarColor">@color/top_bar_bg</item>
+        <item name="android:navigationBarColor">@color/nav_bar_bg</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightNavigationBar">true</item>
         <item name="android:forceDarkAllowed">false</item>
     </style>
 </resources>
