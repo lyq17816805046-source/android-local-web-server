@@ -8,8 +8,8 @@
         <item name="colorOnSecondary">#1A1C1E</item>
         <item name="colorSurface">#14181F</item>
         <item name="colorOnSurface">#E5E7EB</item>
-        <item name="android:statusBarColor">#14181F</item>
-        <item name="android:navigationBarColor">#14181F</item>
+        <item name="android:statusBarColor">@color/top_bar_bg</item>
+        <item name="android:navigationBarColor">@color/nav_bar_bg</item>
         <item name="android:windowLightStatusBar">false</item>
     </style>
 </resources>
