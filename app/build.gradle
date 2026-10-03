@@ -21,8 +21,8 @@ android {
         applicationId 'com.lyq.localwebserver'
         minSdk 26
         targetSdk 34
-        versionCode 24
-        versionName '8.1.1'
+        versionCode 25
+        versionName '8.1.2'
     }
 
     buildTypes {
@@ -52,4 +52,5 @@ dependencies {
     implementation 'androidx.documentfile:documentfile:1.0.1'
     implementation 'com.jcraft:jsch:0.1.55'
     implementation 'com.google.zxing:core:3.5.3'
+    implementation 'com.github.Dimezis:BlurView:version-2.0.3'
 }
