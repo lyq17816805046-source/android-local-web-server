@@ -18,4 +18,6 @@
     <color name="danger">#EF5350</color>
     <color name="accent">#5B8DEF</color>
     <color name="bottom_bg">#F214181F</color>
+    <color name="top_bar_bg">#14181F</color>
+    <color name="nav_bar_bg">#14181F</color>
 </resources>
