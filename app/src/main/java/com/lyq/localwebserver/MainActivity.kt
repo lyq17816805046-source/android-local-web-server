@@ -82,6 +82,22 @@ class MainActivity : ComponentActivity() {
     private lateinit var toolbar: com.google.android.material.appbar.MaterialToolbar
     private var selectedProvider: Provider = TunnelService.LOCALHOST_RUN
     private var accessPassword: String? = null
+    // DDNS
+    private lateinit var switchDdns: com.google.android.material.switchmaterial.SwitchMaterial
+    private lateinit var etDdnsDomain: EditText
+    private lateinit var etDdnsToken: EditText
+    private lateinit var etDdnsSub: EditText
+    private lateinit var btnDdnsSync: com.google.android.material.button.MaterialButton
+    private lateinit var tvDdnsStatus: TextView
+
+    private val ddnsReceiver = object : BroadcastReceiver() {
+        override fun onReceive(c: Context?, i: Intent?) {
+            if (i?.action == DdnsService.ACTION_DDNS) {
+                val s = i.getStringExtra(DdnsService.EXTRA_STATUS) ?: return
+                handler.post { tvDdnsStatus.text = s }
+            }
+        }
+    }
     // 更新下载相关
     private var downloadProgress: android.app.ProgressDialog? = null
     // 自定义服务器参数（从 SharedPreferences 恢复）
@@ -139,6 +155,12 @@ class MainActivity : ComponentActivity() {
             btnProvider2 = findViewById(R.id.btnProvider2)
             btnTestConnection = findViewById(R.id.btnTestConnection)
             statsView = findViewById(R.id.statsView)
+            switchDdns = findViewById(R.id.switchDdns)
+            etDdnsDomain = findViewById(R.id.etDdnsDomain)
+            etDdnsToken = findViewById(R.id.etDdnsToken)
+            etDdnsSub = findViewById(R.id.etDdnsSub)
+            btnDdnsSync = findViewById(R.id.btnDdnsSync)
+            tvDdnsStatus = findViewById(R.id.tvDdnsStatus)
             pageHome = findViewById(R.id.pageHome)
             pageFiles = findViewById(R.id.pageFiles)
             pageConsole = findViewById(R.id.pageConsole)
@@ -176,6 +198,38 @@ class MainActivity : ComponentActivity() {
             registerReceiver(receiver, IntentFilter(WebServerService.ACTION_LOG), RECEIVER_NOT_EXPORTED)
             registerReceiver(tunnelReceiver, IntentFilter(TunnelService.ACTION_TUNNEL), RECEIVER_NOT_EXPORTED)
             registerReceiver(statsReceiver, IntentFilter(WebServerService.ACTION_STATS), RECEIVER_NOT_EXPORTED)
+            registerReceiver(ddnsReceiver, IntentFilter(DdnsService.ACTION_DDNS), RECEIVER_NOT_EXPORTED)
+
+            // 恢复 DDNS 设置
+            val dprefs = getSharedPreferences("settings", MODE_PRIVATE)
+            etDdnsDomain.setText(dprefs.getString("ddns_domain", "") ?: "")
+            etDdnsToken.setText(dprefs.getString("ddns_token", "") ?: "")
+            etDdnsSub.setText(dprefs.getString("ddns_sub", "") ?: "")
+            tvDdnsStatus.text = dprefs.getString("ddns_status", "未启用") ?: "未启用"
+            val ddnsEnabled = dprefs.getBoolean("ddns_enabled", false)
+            switchDdns.isChecked = ddnsEnabled
+            if (ddnsEnabled) startDdnsService()
+
+            switchDdns.setOnCheckedChangeListener { _, checked ->
+                if (checked) {
+                    val domain = etDdnsDomain.text.toString().trim()
+                    val token = etDdnsToken.text.toString().trim()
+                    if (domain.isEmpty() || token.isEmpty()) {
+                        Snackbar.make(root, "请先填写域名和 Token 再开启", Snackbar.LENGTH_SHORT).show()
+                        switchDdns.isChecked = false
+                        return@setOnCheckedChangeListener
+                    }
+                    dprefs.edit().putBoolean("ddns_enabled", true).apply()
+                    saveDdnsFields()
+                    startDdnsService()
+                } else {
+                    dprefs.edit().putBoolean("ddns_enabled", false).apply()
+                    stopService(Intent(this, DdnsService::class.java))
+                    tvDdnsStatus.text = "已关闭"
+                }
+            }
+
+            btnDdnsSync.setOnClickListener { saveDdnsAndSync() }
 
             // 读取已保存的访问密码
             accessPassword = getSharedPreferences("settings", MODE_PRIVATE).getString("access_password", null)
@@ -422,6 +476,36 @@ class MainActivity : ComponentActivity() {
                 switchTunnel.isChecked = false
             }
             .show()
+    }
+
+    // 保存 DDNS 输入框内容
+    private fun saveDdnsFields() {
+        getSharedPreferences("settings", MODE_PRIVATE).edit()
+            .putString("ddns_domain", etDdnsDomain.text.toString().trim())
+            .putString("ddns_token", etDdnsToken.text.toString().trim())
+            .putString("ddns_sub", etDdnsSub.text.toString().trim())
+            .apply()
+    }
+
+    // 保存并立即同步
+    private fun saveDdnsAndSync() {
+        val domain = etDdnsDomain.text.toString().trim()
+        val token = etDdnsToken.text.toString().trim()
+        if (domain.isEmpty() || token.isEmpty()) {
+            Snackbar.make(root, "请先填写域名和 DNSPod Token", Snackbar.LENGTH_SHORT).show()
+            return
+        }
+        saveDdnsFields()
+        getSharedPreferences("settings", MODE_PRIVATE).edit().putBoolean("ddns_enabled", true).apply()
+        switchDdns.isChecked = true
+        // 重启服务，立即开始一轮同步
+        stopService(Intent(this, DdnsService::class.java))
+        handler.postDelayed({ startDdnsService() }, 300)
+        Snackbar.make(root, "已保存，正在同步...", Snackbar.LENGTH_SHORT).show()
+    }
+
+    private fun startDdnsService() {
+        ContextCompat.startForegroundService(this, Intent(this, DdnsService::class.java))
     }
 
     // 从 SharedPreferences 读统计刷新
@@ -1023,6 +1107,7 @@ class MainActivity : ComponentActivity() {
         try { unregisterReceiver(receiver) } catch (_: Exception) {}
         try { unregisterReceiver(tunnelReceiver) } catch (_: Exception) {}
         try { unregisterReceiver(statsReceiver) } catch (_: Exception) {}
+        try { unregisterReceiver(ddnsReceiver) } catch (_: Exception) {}
         super.onDestroy()
     }
 }
